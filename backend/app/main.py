@@ -77,7 +77,7 @@ app.include_router(api_router, prefix="/api")
 
 
 # ── CORS Middleware ───────────────────────────────────────────
-origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()]
+origins = [origin.strip().rstrip('/') for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,

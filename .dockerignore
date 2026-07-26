@@ -1,0 +1,10 @@
+backend/venv
+venv
+**/venv
+**/node_modules
+**/.git
+**/.env
+**/__pycache__
+**/*.pyc
+.tempmediaStorage
+brain

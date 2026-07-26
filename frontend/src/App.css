@@ -1,0 +1,248 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════
+   Enterprise RAG Assistant — Design System
+   Editorial / Premium / Forest-Cream Theme
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Core Palette ─────────────────────────────────────── */
+  --forest:          #314A35;
+  --forest-light:    #3d5c42;
+  --forest-dark:     #263a2a;
+  --cream:           #F3EBDD;
+  --cream-light:     #F7F5F0;
+  --cream-dark:      #E8DCC8;
+  --golden:          #F0B321;
+  --golden-light:    #f5c94d;
+  --golden-dark:     #d49b12;
+  --accent-orange:   #C66A3D;
+  --dark:            #111111;
+  --light:           #F7F5F0;
+  --muted:           #6E6E6E;
+
+  /* ── Semantic Tokens ──────────────────────────────────── */
+  --color-primary:        var(--golden);
+  --color-primary-hover:  var(--golden-dark);
+  --color-background:     var(--cream);
+  --color-surface:        var(--cream-light);
+  --color-surface-hover:  var(--cream-dark);
+  --color-sidebar:        var(--forest);
+  --color-text-primary:   var(--dark);
+  --color-text-secondary: var(--muted);
+  --color-text-light:     var(--light);
+  --color-border:         rgba(0, 0, 0, 0.08);
+  --color-border-light:   rgba(255, 255, 255, 0.08);
+  --color-success:        #2D6A4F;
+  --color-error:          #C66A3D;
+  --color-warning:        #F0B321;
+
+  /* ── Typography ───────────────────────────────────────── */
+  --font-heading: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
+  /* ── Spacing & Radius ─────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   18px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ──────────────────────────────────────────── */
+  --shadow-card:       0 4px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 12px 40px rgba(0, 0, 0, 0.10);
+  --shadow-soft:       0 2px 12px rgba(0, 0, 0, 0.04);
+
+  /* ── Transitions ──────────────────────────────────────── */
+  --transition-base:   all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   Global Resets & Base
+   ═══════════════════════════════════════════════════════════ */
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--cream);
+  color: var(--dark);
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--dark);
+}
+
+/* ── Selection ──────────────────────────────────────────── */
+::selection {
+  background-color: rgba(240, 179, 33, 0.25);
+  color: var(--dark);
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark-bg scrollbar (for sidebar etc.) */
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   Component Classes
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Buttons ────────────────────────────────────────────── */
+.btn-primary {
+  background-color: var(--golden);
+  color: var(--dark);
+  font-family: var(--font-body);
+  font-weight: 600;
+  padding: 0.625rem 1.75rem;
+  border-radius: var(--radius-full);
+  transition: var(--transition-base);
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary:hover {
+  background-color: var(--golden-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(240, 179, 33, 0.25);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--forest);
+  font-family: var(--font-body);
+  font-weight: 500;
+  padding: 0.625rem 1.75rem;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--forest);
+  transition: var(--transition-base);
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background-color: var(--cream-dark);
+  transform: translateY(-1px);
+}
+
+/* ── Cards ──────────────────────────────────────────────── */
+.card {
+  background-color: var(--cream-light);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border);
+  transition: var(--transition-smooth);
+}
+.card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+/* ── Inputs ─────────────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--cream-light);
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--dark);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  transition: var(--transition-base);
+  outline: none;
+}
+.input-field::placeholder {
+  color: var(--muted);
+}
+.input-field:focus {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px rgba(49, 74, 53, 0.1);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   Animation Utilities
+   ═══════════════════════════════════════════════════════════ */
+
+.animate-stagger > * {
+  opacity: 0;
+  animation: fadeUp 0.6s ease-out forwards;
+}
+.animate-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.animate-stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.animate-stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.animate-stagger > *:nth-child(4) { animation-delay: 0.20s; }
+.animate-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.animate-stagger > *:nth-child(6) { animation-delay: 0.30s; }
+
+@keyframes fadeUp {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  0% { opacity: 0; transform: translateX(-20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes pulseSoft {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes bounceGentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ── Stagger delay utilities ────────────────────────────── */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }

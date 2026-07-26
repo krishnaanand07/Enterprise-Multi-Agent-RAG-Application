@@ -21,11 +21,10 @@ class FAISSStore(BaseVectorStore):
         """Lazily load embeddings to save memory on startup (fixes Render 512MB RAM limit)."""
         if self._embeddings is None:
             if settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
-                from langchain_openai import OpenAIEmbeddings
-                self._embeddings = OpenAIEmbeddings(
-                    model="nvidia/nv-embedqa-e5-v5", 
-                    openai_api_base="https://integrate.api.nvidia.com/v1", 
-                    openai_api_key=settings.NVIDIA_API_KEY
+                from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
+                self._embeddings = NVIDIAEmbeddings(
+                    model="nvidia/nv-embedqa-e5-v5",
+                    nvidia_api_key=settings.NVIDIA_API_KEY
                 )
             elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
                 from langchain_openai import OpenAIEmbeddings

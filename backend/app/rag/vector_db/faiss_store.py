@@ -5,17 +5,38 @@ Uses LangChain's FAISS wrapper.
 import os
 from typing import List, Dict, Any, Tuple
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
 
 from app.rag.vector_db.base import BaseVectorStore
 from app.config.settings import settings
 
 class FAISSStore(BaseVectorStore):
     def __init__(self):
-        self.embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+        self._embeddings = None
         self.storage_dir = "vector_db/faiss"
         os.makedirs(self.storage_dir, exist_ok=True)
         self.indices = {} # In-memory cache of FAISS indices by namespace
+
+    @property
+    def embeddings(self):
+        """Lazily load embeddings to save memory on startup (fixes Render 512MB RAM limit)."""
+        if self._embeddings is None:
+            if settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
+                from langchain_openai import OpenAIEmbeddings
+                self._embeddings = OpenAIEmbeddings(
+                    model="nvidia/nv-embedqa-e5-v5", 
+                    openai_api_base="https://integrate.api.nvidia.com/v1", 
+                    openai_api_key=settings.NVIDIA_API_KEY
+                )
+            elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
+                from langchain_openai import OpenAIEmbeddings
+                self._embeddings = OpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
+            elif settings.LLM_PROVIDER == "gemini" and settings.GOOGLE_API_KEY:
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                self._embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=settings.GOOGLE_API_KEY)
+            else:
+                from langchain_huggingface import HuggingFaceEmbeddings
+                self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+        return self._embeddings
 
     def _get_index_path(self, namespace: str) -> str:
         return os.path.join(self.storage_dir, f"{namespace}.faiss")

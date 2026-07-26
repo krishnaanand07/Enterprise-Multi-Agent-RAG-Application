@@ -1,0 +1,73 @@
+# ============================================================
+# Docker Compose — Enterprise RAG Assistant
+# ============================================================
+# Usage:
+#   docker compose up --build        # Build and start all services
+#   docker compose up -d             # Start in background
+#   docker compose down              # Stop all services
+#   docker compose logs -f backend   # Follow backend logs
+# ============================================================
+
+
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: rag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_assistant}
+    ports:
+      - "${DOCKER_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag_user} -d ${POSTGRES_DB:-rag_assistant}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ──────────────────────────────────────
+  backend:
+    image: rag-backend-image
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: rag-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rag_user}:${POSTGRES_PASSWORD:-rag_password_change_me}@postgres:5432/${POSTGRES_DB:-rag_assistant}
+    ports:
+      - "${DOCKER_BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./vector_db:/app/vector_db
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── React Frontend ──────────────────────────────────────
+  frontend:
+    image: rag-frontend-image
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: rag-frontend
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_FRONTEND_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    driver: local

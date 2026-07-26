@@ -77,6 +77,24 @@ class FAISSStore(BaseVectorStore):
         # Normalize response
         return [(doc.page_content, doc.metadata, float(score)) for doc, score in results]
 
+    def delete_document(self, document_id: str, namespace: str) -> None:
+        index = self._load_or_create_index(namespace)
+        if not index:
+            return
+            
+        # Find all chunk IDs in FAISS docstore that belong to this document_id
+        ids_to_delete = []
+        if hasattr(index, "docstore") and hasattr(index.docstore, "_dict"):
+            for faiss_id, doc in index.docstore._dict.items():
+                if doc.metadata.get("document_id") == document_id:
+                    ids_to_delete.append(faiss_id)
+        
+        if ids_to_delete:
+            index.delete(ids_to_delete)
+            # Save to disk
+            index.save_local(self._get_index_path(namespace))
+            self.indices[namespace] = index
+
     def delete_namespace(self, namespace: str) -> None:
         if namespace in self.indices:
             del self.indices[namespace]

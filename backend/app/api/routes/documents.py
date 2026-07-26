@@ -1,6 +1,6 @@
 """Document API routes."""
 import os
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -58,3 +58,35 @@ async def list_documents(
         select(Document).where(Document.owner_id == current_user.id).order_by(Document.created_at.desc())
     )
     return list(result.scalars().all())
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a document, its physical file, and vector embeddings."""
+    result = await db.execute(
+        select(Document).where(Document.id == document_id, Document.owner_id == current_user.id)
+    )
+    doc = result.scalar_one_or_none()
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+        
+    # 1. Delete physical file
+    if os.path.exists(doc.file_path):
+        try:
+            os.remove(doc.file_path)
+        except Exception as e:
+            print(f"Failed to delete file {doc.file_path}: {e}")
+            
+    # 2. Delete from FAISS
+    from app.rag.vector_db.faiss_store import faiss_store
+    faiss_store.delete_document(str(doc.id), str(current_user.id))
+    
+    # 3. Delete from DB
+    await db.delete(doc)
+    await db.commit()
+    
+    return {"message": "Document deleted successfully"}

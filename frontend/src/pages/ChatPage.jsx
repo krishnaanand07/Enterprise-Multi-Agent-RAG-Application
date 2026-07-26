@@ -149,9 +149,9 @@ export default function ChatPage() {
         <form onSubmit={handleSend} className="flex gap-3">
           <input
             type="text"
-            className="flex-1 px-5 py-3.5 bg-white border border-[rgba(0,0,0,0.2)] shadow-sm rounded-full
-                       text-dark text-sm font-body placeholder:text-muted/80
-                       focus:outline-none focus:border-forest focus:shadow-[0_0_0_3px_rgba(49,74,53,0.15)]
+            className="flex-1 px-5 py-3.5 bg-forest border border-transparent shadow-sm rounded-full
+                       text-cream-light text-sm font-body placeholder:text-cream/70
+                       focus:outline-none focus:border-golden/50 focus:shadow-[0_0_0_3px_rgba(240,179,33,0.2)]
                        transition-all duration-300"
             placeholder="Type your message..."
             value={input}

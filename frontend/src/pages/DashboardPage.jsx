@@ -1,10 +1,25 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 
+const StepItem = ({ label, isActive, isDone }) => (
+  <div className={`flex items-center gap-3 text-sm ${isActive ? 'text-dark font-medium' : isDone ? 'text-forest font-medium' : 'text-muted'}`}>
+    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-golden text-white animate-pulse' : isDone ? 'bg-forest text-white' : 'bg-[rgba(0,0,0,0.05)]'}`}>
+      {isDone ? (
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+      ) : isActive ? (
+        <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+      ) : null}
+    </div>
+    {label}
+  </div>
+);
+
 export default function DashboardPage() {
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentUploadDoc, setCurrentUploadDoc] = useState(null);
 
   const fetchDocuments = async () => {
     try {
@@ -19,6 +34,30 @@ export default function DashboardPage() {
     fetchDocuments();
   }, []);
 
+  useEffect(() => {
+    let intervalId;
+    
+    if (currentUploadDoc && currentUploadDoc.id) {
+      const updatedDoc = documents.find(d => d.id === currentUploadDoc.id);
+      if (updatedDoc && updatedDoc.status !== currentUploadDoc.status) {
+        setCurrentUploadDoc(updatedDoc);
+        if (updatedDoc.status === 'processed' || updatedDoc.status === 'failed') {
+          setTimeout(() => setCurrentUploadDoc(null), 4000); // Clear after 4 seconds of completion
+        }
+      }
+    }
+
+    const hasPendingDocuments = documents.some(doc => !['processed', 'failed'].includes(doc.status));
+    if (hasPendingDocuments) {
+      intervalId = setInterval(() => {
+        fetchDocuments();
+      }, 2000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [documents, currentUploadDoc]);
+
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -28,16 +67,36 @@ export default function DashboardPage() {
 
     setUploading(true);
     setError(null);
+    setUploadProgress(0);
+    setCurrentUploadDoc({ original_filename: file.name, status: 'uploading' });
+    
     try {
-      await apiClient.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const res = await apiClient.post('/documents/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
       });
-      fetchDocuments(); // Refresh list
+      setCurrentUploadDoc(res.data.document);
+      fetchDocuments(); // Refresh list immediately to get new document
     } catch (err) {
       setError(err.response?.data?.detail || "Upload failed");
+      setCurrentUploadDoc(null);
     } finally {
       setUploading(false);
       e.target.value = null; // reset input
+    }
+  };
+
+  const handleDeleteDocument = async (docId) => {
+    if (!window.confirm("Are you sure you want to delete this document? This will remove it from the database and AI knowledge base.")) return;
+    
+    try {
+      await apiClient.delete(`/documents/${docId}`);
+      fetchDocuments(); // refresh list
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to delete document");
     }
   };
 
@@ -71,6 +130,33 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Upload Progress Widget ─────────────────────────── */}
+      {currentUploadDoc && (
+        <div className="bg-cream-light border border-[rgba(0,0,0,0.06)] shadow-sm rounded-2xl p-6 mb-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-dark font-semibold text-sm">Processing: {currentUploadDoc.original_filename}</h3>
+            {uploadProgress < 100 && currentUploadDoc.status === 'uploading' && <span className="text-xs font-medium text-muted">{uploadProgress}%</span>}
+          </div>
+          
+          {/* Upload Progress Bar */}
+          {currentUploadDoc.status === 'uploading' && (
+            <div className="mb-6">
+              <div className="w-full bg-[rgba(0,0,0,0.04)] rounded-full h-1.5 overflow-hidden">
+                <div className="bg-forest h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+              </div>
+            </div>
+          )}
+
+          {/* Steps */}
+          <div className="space-y-3">
+             <StepItem label="Uploading File" isActive={currentUploadDoc.status === 'uploading'} isDone={currentUploadDoc.status !== 'uploading'} />
+             <StepItem label="Extracting Text" isActive={currentUploadDoc.status === 'extracting' || currentUploadDoc.status === 'processing'} isDone={['chunking', 'embedding', 'processed'].includes(currentUploadDoc.status)} />
+             <StepItem label="Chunking Content" isActive={currentUploadDoc.status === 'chunking'} isDone={['embedding', 'processed'].includes(currentUploadDoc.status)} />
+             <StepItem label="Creating Embeddings" isActive={currentUploadDoc.status === 'embedding'} isDone={currentUploadDoc.status === 'processed'} />
+          </div>
+        </div>
+      )}
+
       {/* ── Error ────────────────────────────────────────── */}
       {error && (
         <div className="bg-accent-orange/10 text-accent-orange p-4 rounded-xl mb-6 text-sm font-medium flex items-center gap-2">
@@ -90,12 +176,13 @@ export default function DashboardPage() {
               <th className="px-6 py-4 font-medium text-sm text-muted uppercase tracking-wider font-body">Type</th>
               <th className="px-6 py-4 font-medium text-sm text-muted uppercase tracking-wider font-body">Size</th>
               <th className="px-6 py-4 font-medium text-sm text-muted uppercase tracking-wider font-body">Status</th>
+              <th className="px-6 py-4 font-medium text-sm text-muted uppercase tracking-wider font-body text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {documents.length === 0 ? (
               <tr>
-                <td colSpan="4" className="px-6 py-16 text-center">
+                <td colSpan="5" className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-14 h-14 rounded-2xl bg-golden/10 flex items-center justify-center">
                       <svg className="w-7 h-7 text-golden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -120,16 +207,27 @@ export default function DashboardPage() {
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
                       doc.status === 'processed' ? 'bg-forest/10 text-forest' :
-                      doc.status === 'processing' ? 'bg-golden/15 text-golden-dark' :
+                      ['processing', 'extracting', 'chunking', 'embedding'].includes(doc.status) ? 'bg-golden/15 text-golden-dark' :
                       'bg-accent-orange/10 text-accent-orange'
                     }`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${
                         doc.status === 'processed' ? 'bg-forest' :
-                        doc.status === 'processing' ? 'bg-golden animate-pulse' :
+                        ['processing', 'extracting', 'chunking', 'embedding'].includes(doc.status) ? 'bg-golden animate-pulse' :
                         'bg-accent-orange'
                       }`} />
                       {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button 
+                      onClick={() => handleDeleteDocument(doc.id)}
+                      className="p-2 text-muted hover:text-accent-orange bg-transparent hover:bg-accent-orange/10 rounded-xl transition-colors duration-200"
+                      title="Delete document"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))

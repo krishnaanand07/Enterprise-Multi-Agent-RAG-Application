@@ -16,13 +16,22 @@ class DocumentPipeline:
             logger.info(f"Starting processing for document {document.id}")
             
             # 1. Extract text
+            document.status = "extracting"
+            db.add(document)
+            await db.commit()
             text, metadata = extractor.extract_text(document.file_path)
             
             # 2. Chunk text
+            document.status = "chunking"
+            db.add(document)
+            await db.commit()
             chunks = chunker.chunk_text(text)
             
             # 3. Create Metadatas and Store in Vector DB
             if chunks:
+                document.status = "embedding"
+                db.add(document)
+                await db.commit()
                 from app.rag.vector_db.faiss_store import faiss_store
                 metadatas = [
                     {

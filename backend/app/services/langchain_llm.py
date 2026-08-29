@@ -34,24 +34,27 @@ def get_llm(
     provider = provider or settings.LLM_PROVIDER
 
     if provider == "gemini":
+        api_key = settings.GOOGLE_API_KEY.strip() if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip() else "NO_API_KEY_PROVIDED"
         return ChatGoogleGenerativeAI(
             model=settings.GEMINI_MODEL,
-            google_api_key=settings.GOOGLE_API_KEY,
+            google_api_key=api_key,
             temperature=temperature,
             streaming=streaming,
             convert_system_message_to_human=True,
         )
     elif provider == "openai":
+        api_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() else "NO_API_KEY_PROVIDED"
         return ChatOpenAI(
             model=settings.OPENAI_MODEL,
-            api_key=settings.OPENAI_API_KEY,
+            api_key=api_key,
             temperature=temperature,
             streaming=streaming,
         )
     elif provider == "nvidia":
+        api_key = settings.NVIDIA_API_KEY.strip() if settings.NVIDIA_API_KEY and settings.NVIDIA_API_KEY.strip() else "NO_API_KEY_PROVIDED"
         return ChatOpenAI(
             base_url="https://integrate.api.nvidia.com/v1",
-            api_key=settings.NVIDIA_API_KEY,
+            api_key=api_key,
             model=settings.NVIDIA_MODEL,
             temperature=temperature,
             streaming=streaming,

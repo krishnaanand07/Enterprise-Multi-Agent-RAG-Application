@@ -5,9 +5,6 @@ and generates editorial Matplotlib analytical visualizations and charts.
 import json
 import io
 import base64
-import matplotlib
-matplotlib.use("Agg")  # Non-interactive backend for headless enterprise environments
-import matplotlib.pyplot as plt
 from loguru import logger
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -21,6 +18,10 @@ def render_editorial_chart(config: dict) -> str:
     Renders an Awwwards-inspired, editorial themed chart (Forest Green & Warm Cream)
     using Matplotlib and returns a Base64 encoded Data URI PNG string.
     """
+    import matplotlib
+    matplotlib.use("Agg")  # Non-interactive backend for headless enterprise environments
+    import matplotlib.pyplot as plt
+
     chart_type = config.get("chart_type", "bar").lower()
     title = config.get("title", "Analytical Visualization")
     labels = config.get("labels", [])
@@ -107,9 +108,12 @@ def render_editorial_chart(config: dict) -> str:
     return f"data:image/png;base64,{image_base64}"
 
 
+import threading
+
 class SQLAgent:
     def __init__(self):
-        self.llm = get_llm(temperature=0.0)
+        self._llm = None
+        self._lock = threading.Lock()
         
         # Dynamic schema definition
         self.db_schema = """
@@ -125,6 +129,14 @@ class SQLAgent:
         Table: messages
         Columns: id (uuid), role (varchar), content (text), agent_used (varchar), conversation_id (uuid), created_at (timestamp)
         """
+
+    @property
+    def llm(self):
+        if self._llm is None:
+            with self._lock:
+                if self._llm is None:
+                    self._llm = get_llm(temperature=0.0)
+        return self._llm
         
     async def generate_query_node(self, state: AgentState) -> dict:
         """Generates a SQL query from natural language."""

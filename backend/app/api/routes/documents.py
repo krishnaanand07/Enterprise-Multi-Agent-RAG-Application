@@ -12,9 +12,11 @@ from app.api.deps import get_current_user
 from app.utils.file_handler import save_upload_file
 from app.rag.document_processing.pipeline import pipeline
 
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, status
+
 router = APIRouter()
 
-@router.post("/upload", response_model=DocumentUploadResponse)
+@router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -66,8 +68,14 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a document, its physical file, and vector embeddings."""
+    import uuid
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+
     result = await db.execute(
-        select(Document).where(Document.id == document_id, Document.owner_id == current_user.id)
+        select(Document).where(Document.id == doc_uuid, Document.owner_id == current_user.id)
     )
     doc = result.scalar_one_or_none()
     

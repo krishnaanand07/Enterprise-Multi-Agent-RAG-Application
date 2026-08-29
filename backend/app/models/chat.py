@@ -28,6 +28,7 @@ class Conversation(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
         nullable=False,
     )
 
@@ -71,6 +72,7 @@ class Message(Base, TimestampMixin):
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
+        index=True,
         nullable=False,
     )
 

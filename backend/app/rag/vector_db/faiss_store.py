@@ -31,7 +31,7 @@ class FAISSStore(BaseVectorStore):
                         if settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
                             from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
                             self._embeddings = NVIDIAEmbeddings(
-                                model="nvidia/llama-3.2-nv-embedqa-1b-v1",
+                                model="nvidia/nv-embedqa-mistral-7b-v2",
                                 nvidia_api_key=settings.NVIDIA_API_KEY
                             )
                         elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:

@@ -11,18 +11,43 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
 from app.config.settings import settings
 
-# Render / Neon database URL string processing
-db_url = settings.DATABASE_URL
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
-elif db_url.startswith("postgresql://"):
-    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Convert 'sslmode=' (used by libpq/Neon connection strings) to 'ssl=' for asyncpg compatibility
-if "sslmode=" in db_url:
-    db_url = db_url.replace("sslmode=", "ssl=")
+def _format_asyncpg_url(url: str) -> str:
+    """Format connection string for SQLAlchemy asyncpg compatibility."""
+    if not url or "sqlite" in url:
+        return url
+
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    try:
+        parsed = urlparse(url)
+        query_params = parse_qs(parsed.query)
+
+        has_sslmode = "sslmode" in query_params
+
+        # Remove libpq parameters unsupported by asyncpg
+        unsupported_params = ["channel_binding", "sslmode", "target_session_attrs", "gssencmode"]
+        for param in unsupported_params:
+            query_params.pop(param, None)
+
+        # Set ssl=require for cloud hosts (Neon, Render, Supabase)
+        if "ssl" not in query_params and (has_sslmode or (parsed.hostname and parsed.hostname not in ("localhost", "127.0.0.1"))):
+            query_params["ssl"] = ["require"]
+
+        new_query = urlencode(query_params, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+    except Exception:
+        return url
+
+
+db_url = _format_asyncpg_url(settings.DATABASE_URL)
 
 # ── Async Engine ──────────────────────────────────────────────
 # Configured for cloud DB resilience (Render PostgreSQL)

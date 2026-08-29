@@ -28,26 +28,38 @@ class FAISSStore(BaseVectorStore):
             with self._lock:
                 if self._embeddings is None:
                     try:
-                        if settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
+                        if settings.GOOGLE_API_KEY:
+                            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                            self._embeddings = GoogleGenerativeAIEmbeddings(
+                                model="models/text-embedding-004",
+                                google_api_key=settings.GOOGLE_API_KEY
+                            )
+                        elif settings.OPENAI_API_KEY:
+                            from langchain_openai import OpenAIEmbeddings
+                            self._embeddings = OpenAIEmbeddings(
+                                model="text-embedding-3-small",
+                                openai_api_key=settings.OPENAI_API_KEY
+                            )
+                        elif settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
                             from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
                             self._embeddings = NVIDIAEmbeddings(
                                 model="nvidia/nv-embedqa-mistral-7b-v2",
                                 nvidia_api_key=settings.NVIDIA_API_KEY
                             )
-                        elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
-                            from langchain_openai import OpenAIEmbeddings
-                            self._embeddings = OpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
-                        elif settings.LLM_PROVIDER == "gemini" and settings.GOOGLE_API_KEY:
-                            from langchain_google_genai import GoogleGenerativeAIEmbeddings
-                            self._embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=settings.GOOGLE_API_KEY)
                         else:
                             from langchain_huggingface import HuggingFaceEmbeddings
-                            self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+                            self._embeddings = HuggingFaceEmbeddings(
+                                model_name=settings.EMBEDDING_MODEL,
+                                encode_kwargs={"batch_size": 32}
+                            )
                     except Exception as e:
                         from loguru import logger
                         logger.warning(f"Failed to initialize primary embedding provider ({e}). Falling back to local HuggingFace embeddings.")
                         from langchain_huggingface import HuggingFaceEmbeddings
-                        self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+                        self._embeddings = HuggingFaceEmbeddings(
+                            model_name=settings.EMBEDDING_MODEL,
+                            encode_kwargs={"batch_size": 32}
+                        )
         return self._embeddings
 
     def _get_index_path(self, namespace: str) -> str:

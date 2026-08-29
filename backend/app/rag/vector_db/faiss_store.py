@@ -27,19 +27,25 @@ class FAISSStore(BaseVectorStore):
         if self._embeddings is None:
             with self._lock:
                 if self._embeddings is None:
-                    if settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
-                        from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
-                        self._embeddings = NVIDIAEmbeddings(
-                            model="nvidia/nv-embedqa-e5-v5",
-                            nvidia_api_key=settings.NVIDIA_API_KEY
-                        )
-                    elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
-                        from langchain_openai import OpenAIEmbeddings
-                        self._embeddings = OpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
-                    elif settings.LLM_PROVIDER == "gemini" and settings.GOOGLE_API_KEY:
-                        from langchain_google_genai import GoogleGenerativeAIEmbeddings
-                        self._embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=settings.GOOGLE_API_KEY)
-                    else:
+                    try:
+                        if settings.LLM_PROVIDER == "nvidia" and settings.NVIDIA_API_KEY:
+                            from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
+                            self._embeddings = NVIDIAEmbeddings(
+                                model="nvidia/llama-3.2-nv-embedqa-1b-v1",
+                                nvidia_api_key=settings.NVIDIA_API_KEY
+                            )
+                        elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
+                            from langchain_openai import OpenAIEmbeddings
+                            self._embeddings = OpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
+                        elif settings.LLM_PROVIDER == "gemini" and settings.GOOGLE_API_KEY:
+                            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                            self._embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=settings.GOOGLE_API_KEY)
+                        else:
+                            from langchain_huggingface import HuggingFaceEmbeddings
+                            self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+                    except Exception as e:
+                        from loguru import logger
+                        logger.warning(f"Failed to initialize primary embedding provider ({e}). Falling back to local HuggingFace embeddings.")
                         from langchain_huggingface import HuggingFaceEmbeddings
                         self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
         return self._embeddings

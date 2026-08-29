@@ -15,8 +15,8 @@ async def global_exception_handler(request: Request, exc: Exception):
             headers=getattr(exc, "headers", None),
         )
 
-    logger.error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}\n{traceback.format_exc()}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "An internal server error occurred.", "status_code": 500},
+        content={"detail": "An internal server error occurred. Please try again later."},
     )

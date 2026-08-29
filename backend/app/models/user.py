@@ -6,18 +6,20 @@ Passwords are stored as bcrypt hashes — never in plaintext.
 """
 
 import uuid
-from sqlalchemy import String, Boolean
+from sqlalchemy import String, Boolean, Uuid
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, TimestampMixin
+
+UUID_TYPE = UUID(as_uuid=True).with_variant(Uuid(as_uuid=True), "sqlite")
 
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        UUID_TYPE,
         primary_key=True,
         default=uuid.uuid4,
     )

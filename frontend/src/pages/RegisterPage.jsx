@@ -26,7 +26,18 @@ export default function RegisterPage() {
       await apiClient.post('/auth/register', formData);
       navigate('/login');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Registration failed');
+      if (!err.response) {
+        setError('Unable to connect to the server. Please check your network or try again later.');
+      } else {
+        const detail = err.response.data?.detail;
+        if (typeof detail === 'string') {
+          setError(detail);
+        } else if (Array.isArray(detail) && detail.length > 0) {
+          setError(detail[0]?.msg || 'Invalid registration details provided');
+        } else {
+          setError('Registration failed. Please check your details and try again.');
+        }
+      }
     }
   };
 

@@ -21,12 +21,19 @@ const apiClient = axios.create({
   timeout: 30000, // 30 seconds
 });
 
-// Automatically attach JWT token to every request
+// Automatically attach JWT token to authenticated requests (excluding public auth routes)
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const publicEndpoints = ['/auth/login', '/auth/register'];
+    const isPublicEndpoint = publicEndpoints.some((endpoint) =>
+      config.url?.endsWith(endpoint) || config.url?.includes(endpoint)
+    );
+
+    if (!isPublicEndpoint) {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },

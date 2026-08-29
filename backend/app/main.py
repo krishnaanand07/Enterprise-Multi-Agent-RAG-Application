@@ -5,6 +5,7 @@ This is the main entry point for the backend API.
 It configures the FastAPI application, middleware, and routes.
 """
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -25,7 +26,7 @@ async def lifespan(app: FastAPI):
 
     Startup:
       - Log startup environment & configuration metadata
-      - Verify and initialize database schema (with safety try/except)
+      - Verify and initialize database schema with retry backoff
 
     Shutdown:
       - Close database connection pool
@@ -35,17 +36,33 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug Mode: {settings.DEBUG}")
     logger.info(f"LLM Provider Configured: {settings.LLM_PROVIDER}")
 
-    # Database connection & schema migration check
-    try:
-        logger.info("Initializing database connection pool and creating tables if missing...")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            from sqlalchemy import text
-            await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS chart_data JSONB;"))
-        logger.info("Database connection and schema initialization successful.")
-    except Exception as e:
-        logger.error(f"Database initialization error during startup: {e}")
-        logger.warning("Application starting in degraded mode — database may be cold-starting or unavailable.")
+    # Database connection & schema initialization with retry backoff
+    if settings.ENVIRONMENT == "testing":
+        logger.info("Testing environment detected; skipping production database initialization in lifespan.")
+    else:
+        max_retries = 5
+        retry_delay = 2.0
+        db_initialized = False
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Initializing database connection pool and schema (Attempt {attempt}/{max_retries})...")
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+                    from sqlalchemy import text
+                    await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS chart_data JSONB;"))
+                logger.info("Database connection and schema initialization successful.")
+                db_initialized = True
+                break
+            except Exception as e:
+                logger.warning(f"Database connection attempt {attempt}/{max_retries} failed: {e}")
+                if attempt < max_retries:
+                    logger.info(f"Retrying database connection in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+
+        if not db_initialized:
+            logger.error("FATAL: Unable to initialize database schema after maximum retry attempts. Exiting startup.")
+            raise RuntimeError("Database connection and schema initialization failed after maximum retry attempts.")
 
     yield  # Application is running
 

@@ -10,10 +10,29 @@ from app.agents.rag_agent import rag_agent
 from app.agents.sql_agent import sql_agent
 from app.services.langchain_llm import get_llm
 
+import threading
+
 class SupervisorAgent:
     def __init__(self):
-        self.llm = get_llm(temperature=0.0)
-        self.graph = self._build_graph()
+        self._llm = None
+        self._graph = None
+        self._lock = threading.Lock()
+
+    @property
+    def llm(self):
+        if self._llm is None:
+            with self._lock:
+                if self._llm is None:
+                    self._llm = get_llm(temperature=0.0)
+        return self._llm
+
+    @property
+    def graph(self):
+        if self._graph is None:
+            with self._lock:
+                if self._graph is None:
+                    self._graph = self._build_graph()
+        return self._graph
         
     async def route_query_node(self, state: AgentState) -> dict:
         """Decides which agent should handle the query."""

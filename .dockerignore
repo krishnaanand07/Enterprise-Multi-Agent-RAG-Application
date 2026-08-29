@@ -8,3 +8,12 @@ venv
 **/*.pyc
 .tempmediaStorage
 brain
+uploads/*
+!uploads/.gitkeep
+vector_db/*
+!vector_db/.gitkeep
+logs/*
+!logs/.gitkeep
+frontend
+docs
+.pytest_cache

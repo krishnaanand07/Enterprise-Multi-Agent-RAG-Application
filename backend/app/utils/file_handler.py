@@ -14,9 +14,10 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 async def save_upload_file(upload_file: UploadFile, user_id: uuid.UUID) -> str:
     """Validates and saves an uploaded file to the local disk."""
-    ext = Path(upload_file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+    filename = upload_file.filename or ""
+    ext = Path(filename).suffix.lower()
+    if not ext or ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext or 'none'}")
         
     upload_dir = Path("uploads") / str(user_id)
     upload_dir.mkdir(parents=True, exist_ok=True)

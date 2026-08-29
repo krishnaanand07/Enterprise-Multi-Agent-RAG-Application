@@ -9,9 +9,20 @@ from app.agents.state import AgentState
 from app.rag.search.hybrid_search import search_engine
 from app.services.langchain_llm import get_llm
 
+import threading
+
 class RAGAgent:
     def __init__(self):
-        self.llm = get_llm(temperature=0.0) # Low temperature for factual RAG
+        self._llm = None
+        self._lock = threading.Lock()
+
+    @property
+    def llm(self):
+        if self._llm is None:
+            with self._lock:
+                if self._llm is None:
+                    self._llm = get_llm(temperature=0.0) # Low temperature for factual RAG
+        return self._llm
         
     async def retrieve_node(self, state: AgentState) -> dict:
         """Retrieves documents from the vector database."""

@@ -21,13 +21,14 @@ elif db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 # ── Async Engine ──────────────────────────────────────────────
+# Configured for cloud DB resilience (Render PostgreSQL)
 engine = create_async_engine(
     db_url,
     echo=settings.DEBUG,
-    pool_size=20,
-    max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=3600,
+    pool_size=5,
+    max_overflow=5,
+    pool_timeout=15,
+    pool_recycle=300,
     pool_pre_ping=True,
 )
 

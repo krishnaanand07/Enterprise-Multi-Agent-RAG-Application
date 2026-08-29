@@ -13,11 +13,16 @@ from app.models.user import User
 from app.models.chat import Conversation, Message
 from app.schemas.chat import ChatRequest, ChatResponse, ConversationResponse
 from app.api.deps import get_current_user
-from app.agents.supervisor import supervisor
+
+def get_supervisor():
+    from app.agents.supervisor import supervisor
+    return supervisor
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter()
 
-@router.post("/conversations", response_model=ConversationResponse)
+@router.post("/conversations", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 async def create_conversation(
     title: str = "New Conversation",
     db: AsyncSession = Depends(get_db),
@@ -108,7 +113,7 @@ async def generate_chat(
 
     # Call LangGraph Supervisor Agent
     try:
-        agent_result = await supervisor.process_query(request.message, str(current_user.id))
+        agent_result = await get_supervisor().process_query(request.message, str(current_user.id))
         
         answer_text = agent_result.get("answer", "I could not generate an answer.")
         agent_used = agent_result.get("agent_used", "UNKNOWN")

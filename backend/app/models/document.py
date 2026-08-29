@@ -7,18 +7,21 @@ Chunks and embeddings are stored in the vector database.
 """
 
 import uuid
-from sqlalchemy import String, Integer, ForeignKey
+from sqlalchemy import String, Integer, ForeignKey, JSON, Uuid
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, TimestampMixin
+
+UUID_TYPE = UUID(as_uuid=True).with_variant(Uuid(as_uuid=True), "sqlite")
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class Document(Base, TimestampMixin):
     __tablename__ = "documents"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        UUID_TYPE,
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -47,10 +50,10 @@ class Document(Base, TimestampMixin):
         String(50), default="processing"
     )
     metadata_json: Mapped[dict] = mapped_column(
-        JSONB, default=dict, nullable=True
+        JSON_TYPE, default=dict, nullable=True
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        UUID_TYPE,
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
         nullable=False,

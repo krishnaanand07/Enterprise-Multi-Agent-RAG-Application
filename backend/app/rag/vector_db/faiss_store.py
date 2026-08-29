@@ -69,26 +69,46 @@ class FAISSStore(BaseVectorStore):
         return index
 
     def add_texts(self, texts: List[str], metadatas: List[Dict[str, Any]], namespace: str) -> None:
+        try:
+            self._add_texts_internal(texts, metadatas, namespace)
+        except Exception as e:
+            from loguru import logger
+            logger.warning(f"Primary embedding provider failed during add_texts ({e}). Falling back to local HuggingFace embeddings.")
+            from langchain_huggingface import HuggingFaceEmbeddings
+            self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+            self._add_texts_internal(texts, metadatas, namespace)
+
+    def _add_texts_internal(self, texts: List[str], metadatas: List[Dict[str, Any]], namespace: str) -> None:
         index = self._load_or_create_index(namespace)
-        
+
         if index is None:
             from langchain_community.vectorstores import FAISS
             index = FAISS.from_texts(texts, self.embeddings, metadatas=metadatas)
         else:
             index.add_texts(texts, metadatas=metadatas)
-            
+
         # Save to disk
         index.save_local(self._get_index_path(namespace))
         self.indices[namespace] = index
 
     def similarity_search(self, query: str, namespace: str, top_k: int = 4) -> List[Tuple[str, Dict[str, Any], float]]:
+        try:
+            return self._similarity_search_internal(query, namespace, top_k)
+        except Exception as e:
+            from loguru import logger
+            logger.warning(f"Primary embedding provider failed during similarity_search ({e}). Falling back to local HuggingFace embeddings.")
+            from langchain_huggingface import HuggingFaceEmbeddings
+            self._embeddings = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+            return self._similarity_search_internal(query, namespace, top_k)
+
+    def _similarity_search_internal(self, query: str, namespace: str, top_k: int = 4) -> List[Tuple[str, Dict[str, Any], float]]:
         index = self._load_or_create_index(namespace)
         if not index:
             return []
-            
+
         # FAISS returns (Document, score)
         results = index.similarity_search_with_score(query, k=top_k)
-        
+
         # Normalize response
         return [(doc.page_content, doc.metadata, float(score)) for doc, score in results]
 

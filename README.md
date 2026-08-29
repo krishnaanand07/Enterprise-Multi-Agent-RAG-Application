@@ -1,11 +1,5 @@
 # Enterprise Multi-Agent RAG Research Assistant
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
-![React](https://img.shields.io/badge/react-18-cyan.svg)
-![FastAPI](https://img.shields.io/badge/fastapi-0.109+-teal.svg)
-![LangChain](https://img.shields.io/badge/langchain-latest-green.svg)
-
 An enterprise-grade, multi-agent AI research assistant built with LangGraph, FastAPI, and React. This system ingests documents, processes them using a state-of-the-art token-aware chunking and OCR pipeline, and stores embeddings in a vector database (FAISS/ChromaDB). It utilizes a LangGraph-powered **Supervisor Agent** to intelligently route user queries to specialized sub-agents (RAG Document Search vs. SQL Database querying).
 
 ## 🌟 Key Features
@@ -96,8 +90,6 @@ It is designed to serve as both documentation and an interview study guide.
 * Docker & Docker Compose
 * Nginx Reverse Proxy
 * GitHub Actions (CI)
-* Railway (Backend PaaS) & Vercel (Frontend CDN)
+* Render (Backend PaaS) & Vercel (Frontend CDN)
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+ 

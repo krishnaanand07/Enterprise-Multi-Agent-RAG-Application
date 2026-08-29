@@ -43,7 +43,7 @@ async def upload_document(
     await db.refresh(db_doc)
     
     # 3. Trigger background processing (Extraction & Chunking)
-    background_tasks.add_task(pipeline.process_document, db, db_doc)
+    background_tasks.add_task(pipeline.process_document_by_id, str(db_doc.id))
     
     return {
         "message": "Document uploaded successfully and is being processed.",

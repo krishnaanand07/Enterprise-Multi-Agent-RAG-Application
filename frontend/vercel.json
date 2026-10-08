@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "framework": null,
+  "buildCommand": null,
   "cleanUrls": true,
   "routes": [
     {
@@ -8,3 +10,4 @@
     }
   ]
 }
+

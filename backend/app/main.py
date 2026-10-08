@@ -27,29 +27,14 @@ async def lifespan(app: FastAPI):
     if not (settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY):
         logger.error("GEMINI_API_KEY is missing")
 
-    # Initialize DB tables & non-destructive migrations on startup
+    # Initialize DB tables on startup
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            from sqlalchemy import text
-            if engine.url.drivername.startswith("sqlite"):
-                for col_def in [
-                    "stage VARCHAR(100) DEFAULT 'uploading'",
-                    "error_message TEXT",
-                    "page_count INTEGER DEFAULT 0"
-                ]:
-                    try:
-                        await conn.execute(text(f"ALTER TABLE documents ADD COLUMN {col_def}"))
-                    except Exception:
-                        pass
-            else:
-                await conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS stage VARCHAR(100) DEFAULT 'uploading'"))
-                await conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS error_message TEXT"))
-                await conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS page_count INTEGER DEFAULT 0"))
 
-        logger.info("Database table initialization and migration completed successfully")
+        logger.info("Database table initialization completed successfully")
     except Exception:
-        logger.exception("Database initialization/migration failed")
+        logger.exception("Database initialization failed")
         raise
 
 

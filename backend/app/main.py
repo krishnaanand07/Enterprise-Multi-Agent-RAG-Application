@@ -7,7 +7,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.database.database import engine, Base
+import app.models  # Ensure all SQLAlchemy models are registered with Base.metadata before create_all
 from app.api.routes import auth, documents, chat, users, health
+
 
 logger = logging.getLogger("enterprise_rag")
 

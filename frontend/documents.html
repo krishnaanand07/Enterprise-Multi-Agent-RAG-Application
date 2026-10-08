@@ -5,72 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Knowledge Base — Enterprise RAG Assistant</title>
   <link rel="stylesheet" href="css/style.css">
-  <style>
-    .docs-container {
-      flex: 1;
-      padding: 2rem;
-      overflow-y: auto;
-      background-color: var(--bg-main);
-    }
-    .docs-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border-color);
-    }
-    .file-upload-btn {
-      padding: 0.65rem 1.25rem;
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .table-card {
-      background-color: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-    }
-    th, td {
-      padding: 0.85rem 1.25rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border-color);
-    }
-    th {
-      background-color: #0f172a;
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.75rem;
-    }
-    .status-badge {
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .status-processed { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .status-processing { background-color: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-    .status-failed { background-color: rgba(244, 63, 94, 0.2); color: #fecdd3; }
-    .btn-delete {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-    .btn-delete:hover { color: var(--accent-rose); }
-  </style>
+  <link rel="stylesheet" href="css/documents.css">
 </head>
-<body>
+<body class="saas-theme">
   <div class="app-container">
     <!-- Sidebar -->
     <aside class="sidebar">
@@ -79,7 +16,7 @@
           <div class="logo-icon">AI</div>
           <div>
             <div class="brand-title">Enterprise AI</div>
-            <div class="brand-sub">Multi-Agent RAG</div>
+            <div class="brand-sub">Knowledge Base & RAG</div>
           </div>
         </div>
         <div class="sidebar-nav">
@@ -101,29 +38,80 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="docs-container">
-      <div class="docs-header">
+    <main class="saas-main-container">
+      <!-- Header -->
+      <div class="saas-header">
         <div>
-          <h2>Knowledge Base Documents</h2>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
-            Upload PDF, DOCX, TXT, or CSV files to index into vector store
+          <h1 class="saas-title">Knowledge Base</h1>
+          <p class="saas-subtitle">
+            Upload enterprise documents to index into the vector store for RAG multi-agent retrieval.
           </p>
         </div>
         <div style="display: flex; align-items: center; gap: 1rem;">
           <div id="system-status-indicator" class="status-indicator status-connecting">
             🟡 Connecting...
           </div>
-          <input type="file" id="file-input" accept=".pdf,.docx,.txt,.csv" style="display: none;">
-          <button class="file-upload-btn" onclick="document.getElementById('file-input').click()">
-            Upload Document
+          <button class="btn-saas-primary" onclick="document.getElementById('file-input').click()">
+            <span style="font-size: 1.1rem; line-height: 1;">+</span> Upload Document
           </button>
         </div>
       </div>
 
-      <div id="alert-box" class="alert-error" style="display: none; margin-bottom: 1rem;"></div>
+      <div id="alert-box" class="alert-error" style="display: none; margin-bottom: 1.5rem;"></div>
 
-      <div class="table-card">
-        <table>
+      <!-- Drag & Drop Upload Zone -->
+      <div class="dropzone-container" id="dropzone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept=".pdf,.docx,.txt,.csv,.md" style="display: none;">
+        <div class="dropzone-icon">📁</div>
+        <div class="dropzone-title">Click to upload or drag & drop documents</div>
+        <div class="dropzone-sub">
+          Supported formats: <strong>PDF, DOCX, TXT, CSV, MD</strong> (Max file size: 50MB)
+        </div>
+      </div>
+
+      <!-- Live Processing Card (Active when uploading / processing) -->
+      <div id="processing-card" class="progress-card" style="display: none;">
+        <div class="progress-card-header">
+          <div>
+            <div class="progress-filename">
+              <span id="processing-icon">⟳</span>
+              <span id="processing-doc-name">Processing document...</span>
+            </div>
+            <div class="progress-meta" id="processing-meta">0 KB · Starting...</div>
+          </div>
+          <div style="text-align: right;">
+            <div id="processing-timer" style="font-family: monospace; font-size: 0.85rem; color: var(--saas-text-muted);">Elapsed: 0s</div>
+            <div id="processing-stage-label" style="font-size: 0.75rem; font-weight: 600; color: var(--saas-primary); margin-top: 0.2rem;">Stage: Uploading</div>
+          </div>
+        </div>
+
+        <div class="stage-checklist">
+          <div class="stage-item" id="stage-uploading">
+            <span class="stage-icon">○</span> Upload complete
+          </div>
+          <div class="stage-item" id="stage-validating">
+            <span class="stage-icon">○</span> File validated
+          </div>
+          <div class="stage-item" id="stage-extracting">
+            <span class="stage-icon">○</span> Extracting text
+          </div>
+          <div class="stage-item" id="stage-chunking">
+            <span class="stage-icon">○</span> Creating chunks
+          </div>
+          <div class="stage-item" id="stage-embedding">
+            <span class="stage-icon">○</span> Generating embeddings
+          </div>
+          <div class="stage-item" id="stage-indexing">
+            <span class="stage-icon">○</span> Updating vector index
+          </div>
+        </div>
+
+        <div id="processing-error-box" style="display: none; margin-top: 1rem; padding: 0.75rem; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 6px; color: #991b1b; font-size: 0.825rem;"></div>
+      </div>
+
+      <!-- Documents Table Card -->
+      <div class="saas-table-card">
+        <table class="saas-table">
           <thead>
             <tr>
               <th>Document Name</th>
@@ -132,12 +120,12 @@
               <th>Chunks</th>
               <th>Status</th>
               <th>Uploaded Date</th>
-              <th>Action</th>
+              <th style="text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody id="documents-tbody">
             <tr>
-              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              <td colspan="7" style="text-align: center; color: var(--saas-text-muted); padding: 2.5rem;">
                 Loading documents...
               </td>
             </tr>
@@ -165,7 +153,50 @@
 
       const tbody = document.getElementById('documents-tbody');
       const fileInput = document.getElementById('file-input');
+      const dropzone = document.getElementById('dropzone');
       const alertBox = document.getElementById('alert-box');
+
+      // Processing Card UI Elements
+      const processingCard = document.getElementById('processing-card');
+      const processingDocName = document.getElementById('processing-doc-name');
+      const processingMeta = document.getElementById('processing-meta');
+      const processingTimer = document.getElementById('processing-timer');
+      const processingStageLabel = document.getElementById('processing-stage-label');
+      const processingErrorBox = document.getElementById('processing-error-box');
+
+      let activePollingTimer = null;
+      let startTime = null;
+      let timerInterval = null;
+
+      // Drag & Drop Setup
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('drag-over');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('drag-over');
+        }, false);
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+          handleFileUpload(files[0]);
+        }
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleFileUpload(e.target.files[0]);
+        }
+      });
 
       async function loadDocuments() {
         try {
@@ -175,8 +206,8 @@
           if (docs.length === 0) {
             tbody.innerHTML = `
               <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
-                  No uploaded documents found. Click "Upload Document" above.
+                <td colspan="7" style="text-align: center; color: var(--saas-text-muted); padding: 3rem;">
+                  No uploaded documents found. Drag & drop or click "Upload Document" above.
                 </td>
               </tr>
             `;
@@ -185,43 +216,136 @@
 
           tbody.innerHTML = docs.map(doc => `
             <tr>
-              <td style="font-weight: 600; color: var(--text-main);">${escapeHTML(doc.filename)}</td>
-              <td style="text-transform: uppercase;">${escapeHTML(doc.file_type)}</td>
+              <td style="font-weight: 600; color: var(--saas-text-heading);">${escapeHTML(doc.filename)}</td>
+              <td style="text-transform: uppercase; font-size: 0.75rem; font-weight: 600; color: var(--saas-text-muted);">${escapeHTML(doc.file_type)}</td>
               <td>${formatBytes(doc.file_size)}</td>
-              <td>${doc.chunk_count} chunks</td>
+              <td>${doc.chunk_count ? doc.chunk_count + ' chunks' : '—'}</td>
               <td>
-                <span class="status-badge status-${doc.status}">${doc.status}</span>
+                <span class="badge-saas badge-${doc.status}">
+                  ${doc.status === 'processed' ? 'READY' : doc.status === 'processing' ? 'PROCESSING' : 'FAILED'}
+                </span>
               </td>
-              <td>${formatDate(doc.created_at)}</td>
-              <td>
-                <button class="btn-delete" onclick="deleteDoc('${doc.id}', '${escapeHTML(doc.filename)}')">🗑️</button>
+              <td style="font-size: 0.8rem; color: var(--saas-text-muted);">${formatDate(doc.created_at)}</td>
+              <td style="text-align: right;">
+                <button class="btn-saas-delete" onclick="deleteDoc('${doc.id}', '${escapeHTML(doc.filename)}')" title="Delete document">🗑️</button>
               </td>
             </tr>
           `).join('');
+
+          // If any document is processing, ensure polling is active
+          const processingDoc = docs.find(d => d.status === 'processing');
+          if (processingDoc && !activePollingTimer) {
+            startDocumentPolling(processingDoc.id, processingDoc.filename, processingDoc.file_size);
+          }
+
         } catch (err) {
           alertBox.textContent = err.message || 'Failed to load documents.';
           alertBox.style.display = 'block';
         }
       }
 
-      fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+      async function handleFileUpload(file) {
         if (!file) return;
 
         try {
           alertBox.style.display = 'none';
-          await documentService.uploadDocument(file);
-          loadDocuments();
+          processingErrorBox.style.display = 'none';
+
+          // Reset Timer
+          clearInterval(timerInterval);
+          startTime = Date.now();
+          timerInterval = setInterval(() => {
+            const seconds = Math.floor((Date.now() - startTime) / 1000);
+            processingTimer.textContent = `Elapsed: ${seconds}s`;
+          }, 1000);
+
+          processingCard.style.display = 'block';
+          processingDocName.textContent = file.name;
+          processingMeta.textContent = `${formatBytes(file.size)} · Uploading...`;
+
+          updateStageChecklist('uploading');
+
+          // Trigger Background Upload
+          const initialDoc = await documentService.uploadDocument(file);
+
+          updateStageChecklist(initialDoc.stage || 'validating');
+          startDocumentPolling(initialDoc.id, file.name, file.size);
+
         } catch (err) {
+          clearInterval(timerInterval);
+          processingErrorBox.textContent = `Upload Error: ${err.message || 'Failed to upload document.'}`;
+          processingErrorBox.style.display = 'block';
+          updateStageChecklist('failed');
           alertBox.textContent = err.message || 'Upload failed.';
           alertBox.style.display = 'block';
         } finally {
           fileInput.value = '';
         }
-      });
+      }
+
+      function startDocumentPolling(docId, filename, fileSize) {
+        if (activePollingTimer) clearInterval(activePollingTimer);
+
+        activePollingTimer = setInterval(async () => {
+          try {
+            const doc = await documentService.getDocument(docId);
+
+            processingDocName.textContent = doc.filename;
+            processingMeta.textContent = `${formatBytes(doc.file_size)}${doc.page_count ? ' · ' + doc.page_count + ' pages' : ''}`;
+            processingStageLabel.textContent = `Stage: ${doc.stage || doc.status}`;
+
+            updateStageChecklist(doc.stage, doc.error_message);
+
+            if (doc.status === 'processed' || doc.status === 'failed') {
+              clearInterval(activePollingTimer);
+              clearInterval(timerInterval);
+              activePollingTimer = null;
+
+              if (doc.status === 'processed') {
+                processingMeta.textContent = `${formatBytes(doc.file_size)}${doc.page_count ? ' · ' + doc.page_count + ' pages' : ''} · ${doc.chunk_count} chunks created`;
+                setTimeout(() => {
+                  processingCard.style.display = 'none';
+                }, 4000);
+              } else if (doc.status === 'failed') {
+                processingErrorBox.textContent = `Processing Failed: ${doc.error_message || 'An unknown error occurred during vector indexing.'}`;
+                processingErrorBox.style.display = 'block';
+              }
+              loadDocuments();
+            }
+          } catch (err) {
+            // Quiet fail during polling
+          }
+        }, 1500);
+      }
+
+      function updateStageChecklist(currentStage, errorMessage = null) {
+        const stages = ['uploading', 'validating', 'extracting', 'chunking', 'embedding', 'indexing'];
+        const stageIndex = stages.indexOf(currentStage);
+
+        stages.forEach((stage, idx) => {
+          const el = document.getElementById(`stage-${stage}`);
+          if (!el) return;
+
+          if (currentStage === 'failed') {
+            if (idx === stageIndex) {
+              el.className = 'stage-item failed';
+              el.querySelector('.stage-icon').textContent = '✗';
+            }
+          } else if (currentStage === 'ready' || (stageIndex !== -1 && idx < stageIndex)) {
+            el.className = 'stage-item completed';
+            el.querySelector('.stage-icon').textContent = '✓';
+          } else if (idx === stageIndex) {
+            el.className = 'stage-item active';
+            el.querySelector('.stage-icon').textContent = '⟳';
+          } else {
+            el.className = 'stage-item';
+            el.querySelector('.stage-icon').textContent = '○';
+          }
+        });
+      }
 
       window.deleteDoc = async (id, name) => {
-        if (!confirm(`Delete "${name}"?`)) return;
+        if (!confirm(`Delete "${name}" and remove all associated vector embeddings?`)) return;
         try {
           await documentService.deleteDocument(id);
           loadDocuments();

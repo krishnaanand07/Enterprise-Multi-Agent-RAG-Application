@@ -9,7 +9,10 @@ class DocumentResponse(BaseModel):
     file_type: str
     file_size: int
     status: str
-    chunk_count: int
+    stage: str = "uploading"
+    error_message: str | None = None
+    page_count: int = 0
+    chunk_count: int = 0
     created_at: datetime
 
     class Config:

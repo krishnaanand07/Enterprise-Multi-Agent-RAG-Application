@@ -1,6 +1,7 @@
 import os
 import shutil
-from typing import List, Optional
+import threading
+from typing import Dict, List, Optional
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document as LCDocument
 
@@ -9,7 +10,17 @@ from app.rag.embeddings import get_embeddings_model
 
 
 class VectorStoreManager:
-    """FAISS Vector Store Manager with user path isolation."""
+    """FAISS Vector Store Manager with user path isolation and per-user thread locks."""
+
+    _user_locks: Dict[str, threading.Lock] = {}
+    _global_lock = threading.Lock()
+
+    @classmethod
+    def _get_user_lock(cls, user_id: str) -> threading.Lock:
+        with cls._global_lock:
+            if user_id not in cls._user_locks:
+                cls._user_locks[user_id] = threading.Lock()
+            return cls._user_locks[user_id]
 
     @staticmethod
     def _get_user_index_path(user_id: str) -> str:
@@ -20,25 +31,27 @@ class VectorStoreManager:
         if not documents:
             return False
 
-        index_path = cls._get_user_index_path(user_id)
-        os.makedirs(index_path, exist_ok=True)
-        embeddings = get_embeddings_model()
+        user_lock = cls._get_user_lock(user_id)
+        with user_lock:
+            index_path = cls._get_user_index_path(user_id)
+            os.makedirs(index_path, exist_ok=True)
+            embeddings = get_embeddings_model()
 
-        try:
-            if os.path.exists(os.path.join(index_path, "index.faiss")):
-                vector_store = FAISS.load_local(
-                    index_path,
-                    embeddings,
-                    allow_dangerous_deserialization=True
-                )
-                vector_store.add_documents(documents)
-            else:
-                vector_store = FAISS.from_documents(documents, embeddings)
+            try:
+                if os.path.exists(os.path.join(index_path, "index.faiss")):
+                    vector_store = FAISS.load_local(
+                        index_path,
+                        embeddings,
+                        allow_dangerous_deserialization=True
+                    )
+                    vector_store.add_documents(documents)
+                else:
+                    vector_store = FAISS.from_documents(documents, embeddings)
 
-            vector_store.save_local(index_path)
-            return True
-        except Exception as e:
-            raise e
+                vector_store.save_local(index_path)
+                return True
+            except Exception as e:
+                raise e
 
     @classmethod
     def similarity_search(
@@ -73,30 +86,32 @@ class VectorStoreManager:
 
     @classmethod
     def delete_document(cls, user_id: str, document_id: str) -> bool:
-        index_path = cls._get_user_index_path(user_id)
-        if not os.path.exists(os.path.join(index_path, "index.faiss")):
-            return True
+        user_lock = cls._get_user_lock(user_id)
+        with user_lock:
+            index_path = cls._get_user_index_path(user_id)
+            if not os.path.exists(os.path.join(index_path, "index.faiss")):
+                return True
 
-        try:
-            embeddings = get_embeddings_model()
-            vector_store = FAISS.load_local(
-                index_path,
-                embeddings,
-                allow_dangerous_deserialization=True
-            )
+            try:
+                embeddings = get_embeddings_model()
+                vector_store = FAISS.load_local(
+                    index_path,
+                    embeddings,
+                    allow_dangerous_deserialization=True
+                )
 
-            all_docs = list(vector_store.docstore._dict.values())
-            remaining_docs = [
-                d for d in all_docs
-                if d.metadata.get("document_id") != str(document_id)
-            ]
+                all_docs = list(vector_store.docstore._dict.values())
+                remaining_docs = [
+                    d for d in all_docs
+                    if d.metadata.get("document_id") != str(document_id)
+                ]
 
-            if remaining_docs:
-                new_store = FAISS.from_documents(remaining_docs, embeddings)
-                new_store.save_local(index_path)
-            else:
-                shutil.rmtree(index_path, ignore_errors=True)
+                if remaining_docs:
+                    new_store = FAISS.from_documents(remaining_docs, embeddings)
+                    new_store.save_local(index_path)
+                else:
+                    shutil.rmtree(index_path, ignore_errors=True)
 
-            return True
-        except Exception:
-            return False
+                return True
+            except Exception:
+                return False

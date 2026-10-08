@@ -1,7 +1,11 @@
-/* Document Management JS Module */
+/* Document Management & Real-time Stage Polling Module */
 const documentService = {
   async getDocuments() {
     return await apiRequest('/documents');
+  },
+
+  async getDocument(docId) {
+    return await apiRequest(`/documents/${docId}`);
   },
 
   async uploadDocument(file) {

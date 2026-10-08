@@ -14,8 +14,12 @@ class Document(Base):
     file_type = Column(String(50), nullable=False)  # pdf, docx, txt, csv
     file_size = Column(Integer, nullable=False)     # in bytes
     status = Column(String(50), default="pending")  # pending, processing, processed, failed
+    stage = Column(String(100), default="uploading") # uploading, validating, extracting, chunking, embedding, indexing, ready, failed
+    error_message = Column(Text, nullable=True)
+    page_count = Column(Integer, default=0)
     chunk_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
     # Relationships
     user = relationship("User", back_populates="documents")

@@ -10,7 +10,7 @@ const getBackendOrigin = () => {
   if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
     return 'http://localhost:8000';
   }
-  return origin;
+  return 'https://enterprise-rag-backend-3qpl.onrender.com';
 };
 
 const SERVER_ORIGIN = getBackendOrigin();

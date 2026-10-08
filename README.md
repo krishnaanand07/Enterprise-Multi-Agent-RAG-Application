@@ -253,7 +253,7 @@ Return Success (HTTP 201 Created)
 3. Add Environment Variables in Render:
    - `DATABASE_URL`: `postgresql+asyncpg://user:pass@ep-xxx.neon.tech/neondb?sslmode=require`
    - `GEMINI_API_KEY`: `your-gemini-api-key`
-   - `GEMINI_MODEL`: `gemini-1.5-flash`
+   - `GEMINI_MODEL`: `gemini-2.5-flash`
    - `JWT_SECRET_KEY`: `your-secure-jwt-secret`
    - `ALLOWED_ORIGINS`: `["https://your-frontend.vercel.app","http://localhost:8000"]`
    - `ENVIRONMENT`: `production`

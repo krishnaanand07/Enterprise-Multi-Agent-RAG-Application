@@ -26,7 +26,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://rag_user:rag_password@postgres:5432/rag_assistant
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-jwt-key}
       - ENVIRONMENT=production
     ports:

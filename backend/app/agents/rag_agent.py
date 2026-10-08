@@ -1,87 +1,62 @@
-"""
-The RAG Agent Node. Retrieves context and answers questions.
-"""
-from loguru import logger
+from typing import List, Dict, Any
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import HumanMessage, SystemMessage
-
 from app.agents.state import AgentState
-from app.rag.search.hybrid_search import search_engine
-from app.services.langchain_llm import get_llm
+from app.rag.retriever import DocumentRetriever
+from app.services.llm_service import llm_service
 
-import threading
 
 class RAGAgent:
-    def __init__(self):
-        self._llm = None
-        self._lock = threading.Lock()
+    """RAG Agent for vector retrieval and grounded context synthesis."""
 
-    @property
-    def llm(self):
-        if self._llm is None:
-            with self._lock:
-                if self._llm is None:
-                    self._llm = get_llm(temperature=0.0) # Low temperature for factual RAG
-        return self._llm
-        
-    async def retrieve_node(self, state: AgentState) -> dict:
-        """Retrieves documents from the vector database."""
-        logger.info(f"RAG Agent: Retrieving context for query: {state['question']}")
-        
-        results = search_engine.search(
-            query=state["question"], 
-            user_id=state["user_id"], 
-            top_k=5
+    RAG_SYSTEM_PROMPT = """You are an Enterprise Document AI Assistant.
+Answer the user's question accurately based ONLY on the provided context chunks below.
+
+Rules:
+1. Ground your answer strictly in the provided context.
+2. If the context does not contain enough information to answer the question, state clearly: "I could not find relevant information in your uploaded enterprise documents to answer this question."
+3. Keep your response professional, well-structured, and concise.
+
+Context Chunks:
+{context}
+
+Question: {query}
+Answer:"""
+
+    @classmethod
+    async def process(cls, state: AgentState) -> AgentState:
+        query = state["query"]
+        user_id = state["user_id"]
+        selected_doc_id = state.get("selected_document_id")
+
+        # Step 1: Retrieve context (with document scoping if selected)
+        context_text, sources = DocumentRetriever.retrieve_context(
+            user_id=user_id,
+            query=query,
+            top_k=4,
+            document_id=selected_doc_id
         )
-        
-        return {"retrieved_documents": results}
-        
-    async def generate_node(self, state: AgentState) -> dict:
-        """Generates an answer based on retrieved documents."""
-        logger.info("RAG Agent: Generating answer from context.")
-        
-        docs = state.get("retrieved_documents", [])
-        
-        if not docs:
-            return {
-                "final_answer": "I couldn't find any relevant information in your uploaded documents to answer that question.",
-                "citations": []
-            }
-            
-        # Format context
-        context_str = ""
-        citations = []
-        for i, doc in enumerate(docs):
-            content = doc.get("content", "")
-            meta = doc.get("metadata", {})
-            filename = meta.get("filename", "Unknown")
-            
-            context_str += f"\n\n--- Source [{i+1}] ({filename}) ---\n{content}\n"
-            
-            citations.append({
-                "document_name": filename,
-                "chunk_text": content[:200] + "...",
-                "relevance_score": doc.get("relevance_score", 0.0)
+
+        if not context_text:
+            state["response"] = "No matching information found in your uploaded enterprise documents."
+            state["sources"] = []
+            state["agent_used"] = "RAG Agent"
+            return state
+
+        # Step 2: Gemini Generation
+        try:
+            llm = llm_service.get_llm(temperature=0.1)
+            prompt = ChatPromptTemplate.from_template(cls.RAG_SYSTEM_PROMPT)
+            chain = prompt | llm
+            res = await chain.ainvoke({
+                "context": context_text,
+                "query": query
             })
+            state["response"] = str(res.content).strip()
+            state["sources"] = sources
+            state["agent_used"] = "RAG Agent"
+        except Exception as e:
+            state["response"] = f"Error generating answer: {str(e)}"
+            state["sources"] = sources
+            state["agent_used"] = "RAG Agent"
 
-        system_prompt = (
-            "You are an expert research assistant. Answer the user's question using ONLY the provided context.\n"
-            "If the context does not contain the answer, say 'I cannot answer this based on the provided documents.'\n"
-            "Use markdown formatting. Always cite your sources using the Source number, e.g., [1]."
-        )
-        
-        human_prompt = f"Context:\n{context_str}\n\nQuestion: {state['question']}"
-        
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ]
-        
-        response = await self.llm.ainvoke(messages)
-        
-        return {
-            "final_answer": response.content,
-            "citations": citations
-        }
-
-rag_agent = RAGAgent()
+        return state

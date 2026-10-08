@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Enterprise RAG Assistant</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="logo-icon" style="margin: 0 auto;">AI</div>
+        <h1>Welcome Back</h1>
+        <p>Sign in to your Enterprise Multi-Agent RAG Assistant</p>
+      </div>
+
+      <div id="alert-box" class="alert-error" style="display: none;"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" class="form-control" placeholder="name@company.com" required>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" id="btn-submit" class="btn-auth">Sign In</button>
+      </form>
+
+      <div class="auth-footer">
+        Don't have an account? <a href="register.html">Create an account</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const user = authService.getCurrentUser();
+      if (user && localStorage.getItem('token')) {
+        window.location.href = 'index.html';
+      }
+
+      const form = document.getElementById('login-form');
+      const alertBox = document.getElementById('alert-box');
+      const btnSubmit = document.getElementById('btn-submit');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertBox.style.display = 'none';
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Authenticating...';
+
+        try {
+          const email = document.getElementById('email').value.trim();
+          const password = document.getElementById('password').value;
+          await authService.login(email, password);
+          window.location.href = 'index.html';
+        } catch (err) {
+          alertBox.textContent = err.message || 'Login failed.';
+          alertBox.style.display = 'block';
+        } finally {
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = 'Sign In';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

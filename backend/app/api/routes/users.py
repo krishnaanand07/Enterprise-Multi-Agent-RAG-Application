@@ -1,12 +1,12 @@
-"""User API routes."""
 from fastapi import APIRouter, Depends
-from app.models.user import User
-from app.schemas.user import UserResponse
-from app.api.deps import get_current_user
+from app.schemas.auth import UserResponse
+from app.api.dependencies import get_current_user
+from app.models import User
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["Users"])
+
 
 @router.get("/me", response_model=UserResponse)
-async def read_users_me(current_user: User = Depends(get_current_user)):
-    """Get current user profile."""
-    return current_user
+async def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """Get profile details for authenticated user."""
+    return UserResponse.model_validate(current_user)

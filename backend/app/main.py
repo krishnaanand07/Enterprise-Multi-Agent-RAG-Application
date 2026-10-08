@@ -1,160 +1,78 @@
-"""
-Enterprise Multi-Agent RAG Research Assistant — FastAPI Application
-
-This is the main entry point for the backend API.
-It configures the FastAPI application, middleware, and routes.
-"""
-
-import asyncio
-import json
+import os
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
+from fastapi.staticfiles import StaticFiles
 
-from app.config.settings import settings
-from app.database.session import engine
-from app.database.base import Base
-import app.models  # Import all models to register them with Base
+from app.core.config import settings
+from app.database.database import engine, Base
+from app.api.routes import auth, documents, chat, users, health
+
+logger = logging.getLogger("enterprise_rag")
 
 
-# ── Application Lifespan ──────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Manage application startup and shutdown events.
+    # Startup validation and safe logging
+    logger.info("Application starting - Enterprise RAG Assistant v2.0.0")
 
-    Startup:
-      - Log startup environment & configuration metadata
-      - Verify and initialize database schema with retry backoff
-
-    Shutdown:
-      - Close database connection pool
-    """
-    logger.info(f"=== Starting {settings.APP_NAME} v{settings.APP_VERSION} ===")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info(f"Debug Mode: {settings.DEBUG}")
-    logger.info(f"LLM Provider Configured: {settings.LLM_PROVIDER}")
-
-    # Database connection & schema initialization with retry backoff
-    if settings.ENVIRONMENT == "testing":
-        logger.info("Testing environment detected; skipping production database initialization in lifespan.")
+    if settings.DATABASE_URL:
+        logger.info("Database configuration detected")
     else:
-        max_retries = 5
-        retry_delay = 2.0
-        db_initialized = False
+        logger.error("DATABASE_URL configuration is missing")
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(f"Initializing database connection pool and schema (Attempt {attempt}/{max_retries})...")
-                async with engine.begin() as conn:
-                    await conn.run_sync(Base.metadata.create_all)
-                    from sqlalchemy import text
-                    await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS chart_data JSONB;"))
-                logger.info("Database connection and schema initialization successful.")
-                db_initialized = True
-                break
-            except Exception as e:
-                logger.warning(f"Database connection attempt {attempt}/{max_retries} failed: {e}")
-                if attempt < max_retries:
-                    logger.info(f"Retrying database connection in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
+    if not (settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY):
+        logger.error("GEMINI_API_KEY is missing")
 
-        if not db_initialized:
-            logger.error("FATAL: Unable to initialize database schema after maximum retry attempts. Exiting startup.")
-            raise RuntimeError("Database connection and schema initialization failed after maximum retry attempts.")
-
-    yield  # Application is running
-
-    # Shutdown tasks
-    logger.info("Shutting down application and disposing connection pool...")
+    # Initialize DB tables on startup
     try:
-        await engine.dispose()
-        logger.info("Database engine disposed successfully.")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database table initialization completed successfully")
     except Exception as e:
-        logger.error(f"Error disposing database engine: {e}")
+        logger.error(f"Database initialization warning: {str(e)}")
+
+    # Ensure storage directories exist (cold start safe)
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    os.makedirs(settings.VECTOR_STORE_DIR, exist_ok=True)
+
+    yield
+
+    logger.info("Application shutting down")
 
 
-from app.api.routes import api_router
-from app.api.middleware.error_handler import global_exception_handler
-
-# ── Create FastAPI Application ────────────────────────────────
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description=(
-        "A production-ready AI platform for interacting with private "
-        "knowledge bases using natural language. Features multi-agent "
-        "architecture with RAG, SQL, web search, and code execution."
-    ),
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
-    lifespan=lifespan,
+    debug=settings.DEBUG,
+    lifespan=lifespan
 )
 
-# Register exception handler
-app.add_exception_handler(Exception, global_exception_handler)
-
-# Register API router
-app.include_router(api_router, prefix="/api")
-
-
-# ── CORS Middleware ───────────────────────────────────────────
-raw_origins = settings.ALLOWED_ORIGINS.strip()
-origins = []
-if raw_origins.startswith("[") and raw_origins.endswith("]"):
-    try:
-        parsed = json.loads(raw_origins)
-        if isinstance(parsed, list):
-            origins = [str(o).strip().rstrip('/') for o in parsed if str(o).strip()]
-    except Exception:
-        pass
-if not origins:
-    origins = [origin.strip().rstrip('/') for origin in raw_origins.split(",") if origin.strip()]
-
-allow_credentials = True
-if "*" in origins:
-    allow_credentials = False
-
+# CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
-    allow_credentials=allow_credentials,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Include Health & Monitoring Routers (Root /api level)
+app.include_router(health.router, prefix="/api")
 
-# ── Lightweight Health Check Endpoints ─────────────────────────
-@app.get("/health", tags=["Health"])
-async def root_health_check():
-    """
-    Extremely lightweight health check endpoint required for Render cold-starts
-    and uptime pinging. Returns 200 OK without initializing heavy AI/ML libraries.
-    """
-    return {"status": "healthy"}
+# Include API Routers (/api/v1 level)
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(documents.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
 
-
-@app.get("/api/health", tags=["Health"])
-async def api_health_check():
-    """
-    API Health check endpoint.
-    Returns status and version information without initializing heavy AI/ML libraries.
-    """
-    return {
-        "status": "healthy",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-    }
+# Mount Static Frontend Files
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
 
-# ── Root ──────────────────────────────────────────────────────
-@app.get("/", tags=["Root"])
-async def root():
-    """Root endpoint — API information."""
-    return {
-        "message": f"Welcome to {settings.APP_NAME}",
-        "version": settings.APP_VERSION,
-        "docs": "/docs",
-    }
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,17 +1,312 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Enterprise Multi-Agent RAG Research Assistant — AI-powered knowledge base for interacting with private documents using natural language." />
-    <title>Enterprise RAG Assistant</title>
-    <!-- Google Fonts: Cormorant Garamond (headings) + Inter (body) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assistant Chat — Enterprise RAG Assistant</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/chat.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <div class="sidebar-header">
+          <div class="logo-icon">AI</div>
+          <div>
+            <div class="brand-title">Enterprise AI</div>
+            <div class="brand-sub">Multi-Agent RAG</div>
+          </div>
+        </div>
+
+        <div style="padding: 0.75rem;">
+          <button id="btn-new-chat" class="btn-new-chat">+ New Chat</button>
+        </div>
+
+        <div class="sidebar-nav">
+          <a href="index.html" class="nav-item active">💬 Assistant Chat</a>
+          <a href="documents.html" class="nav-item">📄 Knowledge Base</a>
+        </div>
+
+        <div class="chat-history-list">
+          <div class="history-title">Recent Conversations</div>
+          <div id="conversations-list"></div>
+        </div>
+      </div>
+
+      <div class="user-profile">
+        <div class="user-info">
+          <div class="avatar" id="user-avatar">U</div>
+          <div>
+            <div id="user-name" style="font-size: 0.8rem; font-weight: 600;">User</div>
+            <div id="user-email" style="font-size: 0.7rem; color: var(--text-muted);">email@company.com</div>
+          </div>
+        </div>
+        <button id="btn-logout" class="btn-logout" title="Logout">🚪</button>
+      </div>
+    </aside>
+
+    <!-- Main Chat Workspace -->
+    <main class="main-chat">
+      <!-- Header with Document Scope Selector -->
+      <header class="chat-header">
+        <div>
+          <h3 id="current-chat-title">Enterprise RAG Assistant</h3>
+          <p style="font-size: 0.75rem; color: var(--text-muted);">LangGraph Supervisor + Gemini 1.5 Flash</p>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div id="system-status-indicator" class="status-indicator status-connecting">
+            🟡 Connecting...
+          </div>
+          <!-- Document-Scoped Chat Feature -->
+          <div class="document-scope-selector">
+            <label for="select-doc">Scope Search:</label>
+            <select id="select-doc" class="select-document">
+              <option value="">Search All Documents</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <!-- Message Thread Container -->
+      <div id="messages-container" class="messages-container">
+        <div style="text-align: center; color: var(--text-muted); margin-top: 5rem;">
+          <h3>How can I assist your enterprise today?</h3>
+          <p style="font-size: 0.85rem; margin-top: 0.5rem; max-width: 500px; margin-left: auto; margin-right: auto;">
+            Upload PDF, DOCX, TXT, or CSV files to get grounded answers, safe analytical insights, or general support.
+          </p>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="chat-input-container">
+        <form id="chat-form" class="chat-input-form">
+          <input
+            type="text"
+            id="chat-input"
+            class="chat-input"
+            placeholder="Ask a question about your documents, CSV data, or general topics..."
+            required
+            autocomplete="off"
+          >
+          <button type="submit" id="btn-send" class="btn-send">Send</button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/documents.js"></script>
+  <script src="js/chat.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      authService.checkAuth();
+      const user = authService.getCurrentUser();
+      if (user) {
+        document.getElementById('user-name').textContent = user.full_name || 'User';
+        document.getElementById('user-email').textContent = user.email;
+        document.getElementById('user-avatar').textContent = (user.full_name || user.email).charAt(0).toUpperCase();
+      }
+
+      document.getElementById('btn-logout').addEventListener('click', () => authService.logout());
+
+      const conversationsList = document.getElementById('conversations-list');
+      const messagesContainer = document.getElementById('messages-container');
+      const chatForm = document.getElementById('chat-form');
+      const chatInput = document.getElementById('chat-input');
+      const btnSend = document.getElementById('btn-send');
+      const btnNewChat = document.getElementById('btn-new-chat');
+      const selectDoc = document.getElementById('select-doc');
+      const currentChatTitle = document.getElementById('current-chat-title');
+
+      let currentConversationId = null;
+
+      // Populate Document Scope Selector Dropdown
+      try {
+        const docs = await documentService.getDocuments();
+        docs.forEach(doc => {
+          if (doc.status === 'processed') {
+            const opt = document.createElement('option');
+            opt.value = doc.id;
+            opt.textContent = `📄 ${doc.filename}`;
+            selectDoc.appendChild(opt);
+          }
+        });
+      } catch (err) {
+        console.error("Failed to load document scope options:", err);
+      }
+
+      async function loadConversations() {
+        try {
+          const conversations = await chatService.getConversations();
+          if (conversations.length === 0) {
+            conversationsList.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem;">No previous chats</div>';
+            currentConversationId = null;
+            renderEmptyState();
+            return;
+          }
+
+          conversationsList.innerHTML = conversations.map(c => `
+            <div class="history-item ${c.id === currentConversationId ? 'active' : ''}" onclick="selectConversation('${c.id}', '${escapeHTML(c.title)}')">
+              <span style="truncate">${escapeHTML(c.title)}</span>
+              <button onclick="event.stopPropagation(); deleteConversation('${c.id}')" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✕</button>
+            </div>
+          `).join('');
+
+          if (!currentConversationId && conversations.length > 0) {
+            selectConversation(conversations[0].id, conversations[0].title);
+          }
+        } catch (err) {
+          console.error("Failed to load conversations:", err);
+        }
+      }
+
+      window.selectConversation = async (id, title) => {
+        currentConversationId = id;
+        currentChatTitle.textContent = title;
+        loadConversations();
+        loadMessages(id);
+      };
+
+      window.deleteConversation = async (id) => {
+        if (!confirm('Delete this conversation?')) return;
+        await chatService.deleteConversation(id);
+        if (currentConversationId === id) currentConversationId = null;
+        loadConversations();
+      };
+
+      async function loadMessages(convId) {
+        try {
+          const messages = await chatService.getMessages(convId);
+          renderMessages(messages);
+        } catch (err) {
+          console.error("Failed to load messages:", err);
+        }
+      }
+
+      function renderEmptyState() {
+        messagesContainer.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); margin-top: 5rem;">
+            <h3>How can I assist your enterprise today?</h3>
+            <p style="font-size: 0.85rem; margin-top: 0.5rem; max-width: 500px; margin-left: auto; margin-right: auto;">
+              Upload PDF, DOCX, TXT, or CSV files to get grounded answers, safe analytical insights, or general support.
+            </p>
+          </div>
+        `;
+      }
+
+      function renderMessages(messages) {
+        if (messages.length === 0) {
+          renderEmptyState();
+          return;
+        }
+
+        messagesContainer.innerHTML = messages.map(msg => {
+          const isUser = msg.role === 'user';
+          const sources = msg.sources_json || [];
+          const metrics = msg.metrics_json || {};
+
+          let badgeHTML = '';
+          if (!isUser && msg.agent_used) {
+            let badgeClass = 'badge-general';
+            if (msg.agent_used === 'RAG Agent') badgeClass = 'badge-rag';
+            else if (msg.agent_used === 'Data Agent') badgeClass = 'badge-data';
+            badgeHTML = `<span class="badge-agent ${badgeClass}">${msg.agent_used}</span>`;
+          }
+
+          let sourcesHTML = '';
+          if (!isUser && sources.length > 0) {
+            sourcesHTML = `
+              <div class="citations-list">
+                <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); uppercase;">Sources (${sources.length})</div>
+                ${sources.map(s => `
+                  <div class="citation-card">
+                    <div class="citation-title">📄 ${escapeHTML(s.document_name)} (Page ${s.page_number})</div>
+                    <div class="citation-snippet">"${escapeHTML(s.snippet)}"</div>
+                  </div>
+                `).join('')}
+              </div>
+            `;
+          }
+
+          let metricsHTML = '';
+          if (!isUser && metrics.response_time_ms) {
+            metricsHTML = `
+              <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.4rem;">
+                ⚡ Latency: ${(metrics.response_time_ms / 1000).toFixed(2)}s | Sources Used: ${metrics.sources_count || 0}
+              </div>
+            `;
+          }
+
+          return `
+            <div class="message-row ${isUser ? 'user' : 'assistant'}">
+              <div>
+                ${badgeHTML}
+                <div class="message-bubble">${escapeHTML(msg.content)}</div>
+                ${sourcesHTML}
+                ${metricsHTML}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      btnNewChat.addEventListener('click', async () => {
+        try {
+          const newConv = await chatService.createConversation("New Chat");
+          selectConversation(newConv.id, newConv.title);
+        } catch (err) {
+          console.error("Failed to create new chat:", err);
+        }
+      });
+
+      chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const content = chatInput.value.trim();
+        if (!content) return;
+
+        if (!currentConversationId) {
+          const newConv = await chatService.createConversation("New Chat");
+          currentConversationId = newConv.id;
+        }
+
+        const selectedDocId = selectDoc.value || null;
+        chatInput.value = '';
+        btnSend.disabled = true;
+
+        // Optimistic UI Append
+        const tempMsg = { role: 'user', content: content };
+        messagesContainer.insertAdjacentHTML('beforeend', `
+          <div class="message-row user">
+            <div class="message-bubble">${escapeHTML(content)}</div>
+          </div>
+          <div id="typing-indicator" style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
+            Supervisor routing query to Agent...
+          </div>
+        `);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        try {
+          await chatService.sendMessage(currentConversationId, content, selectedDocId);
+          loadMessages(currentConversationId);
+          loadConversations();
+        } catch (err) {
+          const indicator = document.getElementById('typing-indicator');
+          if (indicator) indicator.remove();
+          alert('Failed to send message: ' + err.message);
+        } finally {
+          btnSend.disabled = false;
+        }
+      });
+
+      loadConversations();
+    });
+  </script>
+</body>
 </html>

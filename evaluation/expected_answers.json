@@ -1,0 +1,17 @@
+[
+  {
+    "id": "q1",
+    "expected_answer": "Full-time employees are entitled to 18 days of paid annual leave per year.",
+    "keywords": ["18 days", "annual leave", "paid leave"]
+  },
+  {
+    "id": "q2",
+    "expected_answer": "Net revenue recorded in Q3 was $12.4 million.",
+    "keywords": ["$12.4 million", "12.4M", "net revenue"]
+  },
+  {
+    "id": "q3",
+    "expected_answer": "Passwords must be at least 12 characters, include uppercase, numbers, and special symbols.",
+    "keywords": ["12 characters", "uppercase", "special symbols"]
+  }
+]

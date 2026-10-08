@@ -1,12 +1,6 @@
-"""
-Database models package.
-
-Import all models here so Alembic can discover them
-for automatic migration generation.
-"""
-
 from app.models.user import User
-from app.models.document import Document
-from app.models.chat import Conversation, Message
+from app.models.document import Document, DocumentChunk
+from app.models.conversation import Conversation, Message
+from app.models.dataset import Dataset
 
-__all__ = ["User", "Document", "Conversation", "Message"]
+__all__ = ["User", "Document", "DocumentChunk", "Conversation", "Message", "Dataset"]

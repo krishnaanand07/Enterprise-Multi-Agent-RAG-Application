@@ -1,46 +1,19 @@
-"""
-User database model.
-
-Stores user credentials, profile information, and role.
-Passwords are stored as bcrypt hashes — never in plaintext.
-"""
-
 import uuid
-from sqlalchemy import String, Boolean, Uuid
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime
+from sqlalchemy import Column, String, DateTime
+from sqlalchemy.orm import relationship
+from app.database.database import Base
 
-from app.database.base import Base, TimestampMixin
-
-UUID_TYPE = UUID(as_uuid=True).with_variant(Uuid(as_uuid=True), "sqlite")
-
-
-class User(Base, TimestampMixin):
+class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID_TYPE,
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-    email: Mapped[str] = mapped_column(
-        String(255), unique=True, index=True, nullable=False
-    )
-    username: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False
-    )
-    hashed_password: Mapped[str] = mapped_column(
-        String(255), nullable=False
-    )
-    full_name: Mapped[str] = mapped_column(
-        String(255), nullable=True
-    )
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False
-    )
-    is_admin: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    def __repr__(self) -> str:
-        return f"<User(id={self.id}, email={self.email})>"
+    # Relationships
+    documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
+    datasets = relationship("Dataset", back_populates="user", cascade="all, delete-orphan")

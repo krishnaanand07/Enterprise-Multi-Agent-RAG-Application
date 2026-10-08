@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Base — Enterprise RAG Assistant</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .docs-container {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      background-color: var(--bg-main);
+    }
+    .docs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .file-upload-btn {
+      padding: 0.65rem 1.25rem;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .table-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      padding: 0.85rem 1.25rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    th {
+      background-color: #0f172a;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+    }
+    .status-badge {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-processed { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .status-processing { background-color: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .status-failed { background-color: rgba(244, 63, 94, 0.2); color: #fecdd3; }
+    .btn-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .btn-delete:hover { color: var(--accent-rose); }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <div class="sidebar-header">
+          <div class="logo-icon">AI</div>
+          <div>
+            <div class="brand-title">Enterprise AI</div>
+            <div class="brand-sub">Multi-Agent RAG</div>
+          </div>
+        </div>
+        <div class="sidebar-nav">
+          <a href="index.html" class="nav-item">💬 Assistant Chat</a>
+          <a href="documents.html" class="nav-item active">📄 Knowledge Base</a>
+        </div>
+      </div>
+
+      <div class="user-profile">
+        <div class="user-info">
+          <div class="avatar" id="user-avatar">U</div>
+          <div>
+            <div id="user-name" style="font-size: 0.8rem; font-weight: 600;">User</div>
+            <div id="user-email" style="font-size: 0.7rem; color: var(--text-muted);">email@company.com</div>
+          </div>
+        </div>
+        <button id="btn-logout" class="btn-logout" title="Logout">🚪</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="docs-container">
+      <div class="docs-header">
+        <div>
+          <h2>Knowledge Base Documents</h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Upload PDF, DOCX, TXT, or CSV files to index into vector store
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div id="system-status-indicator" class="status-indicator status-connecting">
+            🟡 Connecting...
+          </div>
+          <input type="file" id="file-input" accept=".pdf,.docx,.txt,.csv" style="display: none;">
+          <button class="file-upload-btn" onclick="document.getElementById('file-input').click()">
+            Upload Document
+          </button>
+        </div>
+      </div>
+
+      <div id="alert-box" class="alert-error" style="display: none; margin-bottom: 1rem;"></div>
+
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Document Name</th>
+              <th>Type</th>
+              <th>Size</th>
+              <th>Chunks</th>
+              <th>Status</th>
+              <th>Uploaded Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="documents-tbody">
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                Loading documents...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/documents.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      authService.checkAuth();
+      const user = authService.getCurrentUser();
+      if (user) {
+        document.getElementById('user-name').textContent = user.full_name || 'User';
+        document.getElementById('user-email').textContent = user.email;
+        document.getElementById('user-avatar').textContent = (user.full_name || user.email).charAt(0).toUpperCase();
+      }
+
+      document.getElementById('btn-logout').addEventListener('click', () => authService.logout());
+
+      const tbody = document.getElementById('documents-tbody');
+      const fileInput = document.getElementById('file-input');
+      const alertBox = document.getElementById('alert-box');
+
+      async function loadDocuments() {
+        try {
+          alertBox.style.display = 'none';
+          const docs = await documentService.getDocuments();
+
+          if (docs.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                  No uploaded documents found. Click "Upload Document" above.
+                </td>
+              </tr>
+            `;
+            return;
+          }
+
+          tbody.innerHTML = docs.map(doc => `
+            <tr>
+              <td style="font-weight: 600; color: var(--text-main);">${escapeHTML(doc.filename)}</td>
+              <td style="text-transform: uppercase;">${escapeHTML(doc.file_type)}</td>
+              <td>${formatBytes(doc.file_size)}</td>
+              <td>${doc.chunk_count} chunks</td>
+              <td>
+                <span class="status-badge status-${doc.status}">${doc.status}</span>
+              </td>
+              <td>${formatDate(doc.created_at)}</td>
+              <td>
+                <button class="btn-delete" onclick="deleteDoc('${doc.id}', '${escapeHTML(doc.filename)}')">🗑️</button>
+              </td>
+            </tr>
+          `).join('');
+        } catch (err) {
+          alertBox.textContent = err.message || 'Failed to load documents.';
+          alertBox.style.display = 'block';
+        }
+      }
+
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          alertBox.style.display = 'none';
+          await documentService.uploadDocument(file);
+          loadDocuments();
+        } catch (err) {
+          alertBox.textContent = err.message || 'Upload failed.';
+          alertBox.style.display = 'block';
+        } finally {
+          fileInput.value = '';
+        }
+      });
+
+      window.deleteDoc = async (id, name) => {
+        if (!confirm(`Delete "${name}"?`)) return;
+        try {
+          await documentService.deleteDocument(id);
+          loadDocuments();
+        } catch (err) {
+          alertBox.textContent = err.message || 'Delete failed.';
+          alertBox.style.display = 'block';
+        }
+      };
+
+      loadDocuments();
+    });
+  </script>
+</body>
+</html>

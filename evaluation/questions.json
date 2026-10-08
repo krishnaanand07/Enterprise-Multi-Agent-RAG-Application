@@ -1,0 +1,17 @@
+[
+  {
+    "id": "q1",
+    "question": "What is the annual leave allowance policy for full-time employees?",
+    "category": "policy"
+  },
+  {
+    "id": "q2",
+    "question": "What was the total net revenue recorded in Q3 financial summary?",
+    "category": "finance"
+  },
+  {
+    "id": "q3",
+    "question": "What are the rules regarding data security and password complexity?",
+    "category": "security"
+  }
+]

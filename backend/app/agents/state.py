@@ -1,21 +1,13 @@
-"""
-LangGraph State definitions.
-"""
 from typing import TypedDict, List, Dict, Any, Optional
 
+
 class AgentState(TypedDict):
-    """The state passed between all nodes in the graph."""
+    query: str
     user_id: str
-    question: str
-    chat_history: List[Dict[str, str]]
-    
-    # Internal routing and context
-    next_agent: Optional[str]
-    retrieved_documents: List[Dict[str, Any]]
-    sql_query: Optional[str]
-    sql_result: Optional[str]
-    
-    # Final Output
-    final_answer: Optional[str]
-    citations: List[Dict[str, Any]]
-    chart_data: Optional[Dict[str, Any]]
+    conversation_id: str
+    selected_document_id: Optional[str]     # Optional doc filter for Document-Scoped Chat
+    route: Optional[str]                   # "DOCUMENT", "DATA", "GENERAL"
+    response: Optional[str]                # Final answer string
+    sources: Optional[List[Dict[str, Any]]] # Array of citation objects
+    agent_used: Optional[str]
+    metrics: Optional[Dict[str, Any]]      # Observability metrics (latency_ms, sources_count, etc.)

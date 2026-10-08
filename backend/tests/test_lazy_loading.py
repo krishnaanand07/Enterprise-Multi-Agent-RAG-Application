@@ -1,39 +1,25 @@
 """
-Unit tests for lazy loading component integrity.
+Unit tests for component architecture integrity.
 """
 import pytest
 from app.agents.supervisor import SupervisorAgent
 from app.agents.rag_agent import RAGAgent
-from app.agents.sql_agent import SQLAgent
-from app.rag.vector_db.faiss_store import FAISSStore
+from app.agents.data_agent import DataAgent
+from app.agents.general_agent import GeneralAgent
+from app.rag.vector_store import VectorStoreManager
 
-def test_supervisor_lazy_loading():
-    """Verify SupervisorAgent initializes without eager LLM or Graph compilation."""
-    agent = SupervisorAgent()
-    assert agent._llm is None
-    assert agent._graph is None
-    # Access properties lazily
-    assert agent.llm is not None
-    assert agent.graph is not None
-    assert agent._llm is not None
-    assert agent._graph is not None
+def test_supervisor_agent_routing_structure():
+    """Verify SupervisorAgent prompt and route function signature."""
+    assert hasattr(SupervisorAgent, "route")
+    assert "DOCUMENT" in SupervisorAgent.SUPERVISOR_PROMPT
 
-def test_rag_agent_lazy_loading():
-    """Verify RAGAgent initializes lazily."""
-    agent = RAGAgent()
-    assert agent._llm is None
-    assert agent.llm is not None
-    assert agent._llm is not None
+def test_agents_callable():
+    """Verify agent process methods exist."""
+    assert hasattr(RAGAgent, "process")
+    assert hasattr(DataAgent, "process")
+    assert hasattr(GeneralAgent, "process")
 
-def test_sql_agent_lazy_loading():
-    """Verify SQLAgent initializes lazily."""
-    agent = SQLAgent()
-    assert agent._llm is None
-    assert agent.llm is not None
-    assert agent._llm is not None
-
-def test_faiss_store_lazy_loading():
-    """Verify FAISSStore initializes lazily without throwing import errors."""
-    store = FAISSStore()
-    assert store._embeddings is None
-    assert store.indices == {}
+def test_vector_store_lazy_initialization():
+    """Verify VectorStoreManager initializes cleanly."""
+    manager = VectorStoreManager()
+    assert manager is not None

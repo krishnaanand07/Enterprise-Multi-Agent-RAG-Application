@@ -1,100 +1,41 @@
-"""Document API routes."""
-import os
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
+from typing import List
+from fastapi import APIRouter, Depends, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from app.database.session import get_db
-from app.models.user import User
-from app.models.document import Document
-from app.schemas.document import DocumentUploadResponse, DocumentResponse
-from app.api.deps import get_current_user
-from app.utils.file_handler import save_upload_file
-from app.rag.document_processing.pipeline import pipeline
+from app.database.database import get_db
+from app.schemas.document import DocumentResponse
+from app.services.document_service import DocumentService
+from app.api.dependencies import get_current_user
+from app.models import User
 
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, status
+router = APIRouter(prefix="/documents", tags=["Documents"])
 
-router = APIRouter()
 
-@router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Upload a document and trigger processing."""
-    
-    # 1. Save file to disk safely
-    file_path = await save_upload_file(file, current_user.id)
-    
-    # 2. Create DB record
-    db_doc = Document(
-        filename=os.path.basename(file_path),
-        original_filename=file.filename,
-        file_type=file.content_type or "application/octet-stream",
-        file_size=os.path.getsize(file_path),
-        file_path=file_path,
-        owner_id=current_user.id,
-        status="processing"
-    )
-    db.add(db_doc)
-    await db.commit()
-    await db.refresh(db_doc)
-    
-    # 3. Trigger background processing (Extraction & Chunking)
-    background_tasks.add_task(pipeline.process_document_by_id, str(db_doc.id))
-    
-    return {
-        "message": "Document uploaded successfully and is being processed.",
-        "document": db_doc
-    }
+    """Upload PDF, DOCX, TXT, or CSV document and trigger vector indexing."""
+    return await DocumentService.upload_and_process(db, current_user.id, file)
 
-@router.get("/", response_model=list[DocumentResponse])
+
+@router.get("", response_model=List[DocumentResponse])
 async def list_documents(
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """List all documents for the current user."""
-    result = await db.execute(
-        select(Document).where(Document.owner_id == current_user.id).order_by(Document.created_at.desc())
-    )
-    return list(result.scalars().all())
+    """List all uploaded documents for current user."""
+    return await DocumentService.list_user_documents(db, current_user.id)
 
-@router.delete("/{document_id}")
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: str,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Delete a document, its physical file, and vector embeddings."""
-    import uuid
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format")
-
-    result = await db.execute(
-        select(Document).where(Document.id == doc_uuid, Document.owner_id == current_user.id)
-    )
-    doc = result.scalar_one_or_none()
-    
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-        
-    # 1. Delete physical file
-    if os.path.exists(doc.file_path):
-        try:
-            os.remove(doc.file_path)
-        except Exception as e:
-            print(f"Failed to delete file {doc.file_path}: {e}")
-            
-    # 2. Delete from FAISS
-    from app.rag.vector_db.faiss_store import faiss_store
-    faiss_store.delete_document(str(doc.id), str(current_user.id))
-    
-    # 3. Delete from DB
-    await db.delete(doc)
-    await db.commit()
-    
-    return {"message": "Document deleted successfully"}
+    """Delete a document, its DB chunks, and FAISS vectors."""
+    await DocumentService.delete_document(db, current_user.id, document_id)
+    return None

@@ -37,7 +37,7 @@ Answer:"""
         )
 
         if not context_text:
-            state["response"] = "No matching information found in your uploaded enterprise documents."
+            state["response"] = "I could not find relevant information in your uploaded enterprise documents to answer this question."
             state["sources"] = []
             state["agent_used"] = "RAG Agent"
             return state

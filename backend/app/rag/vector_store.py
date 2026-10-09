@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import logging
 import threading
@@ -10,6 +11,74 @@ from app.core.config import settings
 from app.rag.embeddings import get_embeddings_model
 
 logger = logging.getLogger("enterprise_rag")
+
+
+def _get_model_identity(embeddings) -> str:
+    """Extracts unique model identifier string from Embeddings instance."""
+    if hasattr(embeddings, "model") and embeddings.model:
+        return str(embeddings.model)
+    if hasattr(embeddings, "model_name") and embeddings.model_name:
+        return str(embeddings.model_name)
+    return embeddings.__class__.__name__
+
+
+def _save_index_metadata(index_path: str, model_id: str, dimension: int) -> None:
+    """
+    Saves model identity and dimension metadata alongside FAISS index files.
+    Fails cleanly if file write fails without destroying existing FAISS index data.
+    """
+    meta_path = os.path.join(index_path, "index_metadata.json")
+    data = {
+        "embedding_model": model_id,
+        "embedding_dimension": dimension,
+    }
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _validate_index_compatibility(index_path: str, embeddings) -> None:
+    """
+    Validates model identity and embedding dimension compatibility of existing FAISS index.
+    Refuses operation if index lacks metadata or has incompatible model/dimension.
+    Never deletes or alters existing index files.
+    """
+    meta_path = os.path.join(index_path, "index_metadata.json")
+    sample_vec = embeddings.embed_query("dimension_check")
+    current_dim = len(sample_vec)
+    current_model = _get_model_identity(embeddings)
+
+    if not os.path.exists(meta_path):
+        msg = (
+            f"FAISS index at {index_path} lacks verified model metadata (legacy or unverified embedding model). "
+            f"Refusing operation with active model '{current_model}'. Controlled re-embedding of existing documents is required. "
+            f"Existing index at {index_path} was preserved."
+        )
+        logger.error(f"Vector store compatibility error: {msg}")
+        raise ValueError(msg)
+
+    try:
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+    except Exception as e:
+        msg = (
+            f"Failed to read FAISS index metadata at {meta_path}: {str(e)}. "
+            f"Existing index at {index_path} was preserved."
+        )
+        logger.error(f"Vector store metadata read error: {msg}")
+        raise ValueError(msg) from e
+
+    stored_model = meta.get("embedding_model")
+    stored_dim = meta.get("embedding_dimension")
+
+    if stored_model != current_model or stored_dim != current_dim:
+        msg = (
+            f"FAISS index model identity/dimension mismatch (stored: '{stored_model}', dim {stored_dim}) "
+            f"vs active embedding model (current: '{current_model}', dim {current_dim}). "
+            f"Controlled re-embedding of existing documents is required for model migration. "
+            f"Existing index at {index_path} was preserved."
+        )
+        logger.error(f"Vector store compatibility error: {msg}")
+        raise ValueError(msg)
 
 
 class VectorStoreManager:
@@ -42,17 +111,24 @@ class VectorStoreManager:
 
             try:
                 if os.path.exists(os.path.join(index_path, "index.faiss")):
+                    logger.info(f"Vector indexing: Validating compatibility for existing FAISS index at {index_path}...")
+                    _validate_index_compatibility(index_path, embeddings)
+
                     logger.info(f"Vector indexing: Loading existing FAISS index from {index_path}...")
                     vector_store = FAISS.load_local(
                         index_path,
                         embeddings,
                         allow_dangerous_deserialization=True
                     )
+
                     logger.info(f"Vector indexing: Adding {len(documents)} document chunks to FAISS index...")
                     vector_store.add_documents(documents)
                 else:
                     logger.info(f"Vector indexing: Creating new FAISS index for {len(documents)} document chunks...")
                     vector_store = FAISS.from_documents(documents, embeddings)
+
+                sample_vec = embeddings.embed_query("dimension_check")
+                _save_index_metadata(index_path, _get_model_identity(embeddings), len(sample_vec))
 
                 logger.info(f"Vector indexing: Saving FAISS index to {index_path}...")
                 vector_store.save_local(index_path)
@@ -76,6 +152,8 @@ class VectorStoreManager:
 
         try:
             embeddings = get_embeddings_model()
+            _validate_index_compatibility(index_path, embeddings)
+
             vector_store = FAISS.load_local(
                 index_path,
                 embeddings,
@@ -90,7 +168,8 @@ class VectorStoreManager:
                 filter=filter_dict
             )
             return docs
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error during FAISS similarity search for user {user_id}: {str(e)}")
             return []
 
     @classmethod
@@ -103,6 +182,8 @@ class VectorStoreManager:
 
             try:
                 embeddings = get_embeddings_model()
+                _validate_index_compatibility(index_path, embeddings)
+
                 vector_store = FAISS.load_local(
                     index_path,
                     embeddings,
@@ -117,10 +198,13 @@ class VectorStoreManager:
 
                 if remaining_docs:
                     new_store = FAISS.from_documents(remaining_docs, embeddings)
+                    sample_vec = embeddings.embed_query("dimension_check")
+                    _save_index_metadata(index_path, _get_model_identity(embeddings), len(sample_vec))
                     new_store.save_local(index_path)
                 else:
                     shutil.rmtree(index_path, ignore_errors=True)
 
                 return True
-            except Exception:
+            except Exception as e:
+                logger.error(f"FAISS delete_document failed for user {user_id}: {str(e)}")
                 return False

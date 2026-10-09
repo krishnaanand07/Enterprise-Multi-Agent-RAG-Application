@@ -1,5 +1,6 @@
 import os
 import shutil
+import logging
 import threading
 from typing import Dict, List, Optional
 from langchain_community.vectorstores import FAISS
@@ -7,6 +8,8 @@ from langchain_core.documents import Document as LCDocument
 
 from app.core.config import settings
 from app.rag.embeddings import get_embeddings_model
+
+logger = logging.getLogger("enterprise_rag")
 
 
 class VectorStoreManager:
@@ -39,18 +42,24 @@ class VectorStoreManager:
 
             try:
                 if os.path.exists(os.path.join(index_path, "index.faiss")):
+                    logger.info(f"Vector indexing: Loading existing FAISS index from {index_path}...")
                     vector_store = FAISS.load_local(
                         index_path,
                         embeddings,
                         allow_dangerous_deserialization=True
                     )
+                    logger.info(f"Vector indexing: Adding {len(documents)} document chunks to FAISS index...")
                     vector_store.add_documents(documents)
                 else:
+                    logger.info(f"Vector indexing: Creating new FAISS index for {len(documents)} document chunks...")
                     vector_store = FAISS.from_documents(documents, embeddings)
 
+                logger.info(f"Vector indexing: Saving FAISS index to {index_path}...")
                 vector_store.save_local(index_path)
+                logger.info(f"Vector indexing: Vector store persistence complete at {index_path}.")
                 return True
             except Exception as e:
+                logger.error(f"Vector indexing error for user {user_id}: {str(e)}", exc_info=True)
                 raise e
 
     @classmethod

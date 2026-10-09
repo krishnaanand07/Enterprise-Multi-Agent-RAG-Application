@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.core.config import settings
-from app.database.database import AsyncSessionLocal
+import app.database.database as db_module
 from app.models import Document, DocumentChunk, Dataset
 from app.rag.loaders import DocumentLoader
 from app.rag.chunker import DocumentChunker
@@ -96,13 +96,14 @@ class DocumentService:
         """Asynchronous background worker executing stages with offloaded CPU embedding computation."""
         ext = os.path.splitext(filename)[1].lower()
 
-        async with AsyncSessionLocal() as db:
+        async with db_module.AsyncSessionLocal() as db:
             result = await db.execute(select(Document).where(Document.id == doc_id))
             doc = result.scalars().first()
             if not doc:
                 return
 
             try:
+                logger.info(f"Starting background processing for document '{filename}' (ID: {doc_id})")
                 # Stage 1: Extracting text
                 doc.stage = "extracting"
                 await db.commit()
@@ -120,7 +121,11 @@ class DocumentService:
                     chunker.chunk_document, pages, doc_id, filename, user_id
                 )
 
+                if not lc_chunks:
+                    raise ValueError("No readable text content could be extracted from document.")
+
                 # Stage 3: Generating embeddings & Updating Vector Store
+                logger.info(f"Embedding start: Beginning embedding generation for document '{filename}' ({len(lc_chunks)} chunks)...")
                 doc.stage = "embedding"
                 await db.commit()
 
@@ -130,6 +135,10 @@ class DocumentService:
                     documents=lc_chunks
                 )
 
+                if not success:
+                    raise RuntimeError("Failed to index document chunks into vector store.")
+
+                logger.info(f"Embedding completion: Vectors successfully generated and saved for document '{filename}'.")
                 doc.stage = "indexing"
                 await db.commit()
 
@@ -165,14 +174,22 @@ class DocumentService:
                 doc.chunk_count = len(lc_chunks)
                 doc.error_message = None
                 await db.commit()
-                logger.info(f"Document processing completed for '{filename}' ({len(lc_chunks)} chunks)")
+                logger.info(f"Final document status: Document processing completed successfully for '{filename}' ({len(lc_chunks)} chunks, status='processed', stage='ready').")
 
             except Exception as e:
-                logger.error(f"Error processing document '{filename}': {str(e)}")
-                doc.status = "failed"
-                doc.stage = "failed"
-                doc.error_message = str(e)
-                await db.commit()
+                logger.error(f"Error processing document '{filename}' (ID: {doc_id}): {str(e)}", exc_info=True)
+                try:
+                    await db.rollback()
+                    res = await db.execute(select(Document).where(Document.id == doc_id))
+                    doc_err = res.scalars().first()
+                    if doc_err:
+                        doc_err.status = "failed"
+                        doc_err.stage = "failed"
+                        doc_err.error_message = str(e)
+                        await db.commit()
+                        logger.info(f"Final document status: Updated document '{filename}' (ID: {doc_id}) to status='failed', stage='failed', error='{str(e)}'")
+                except Exception as db_err:
+                    logger.error(f"Failed to update document '{filename}' status to failed: {str(db_err)}")
 
     @staticmethod
     async def list_user_documents(db: AsyncSession, user_id: str) -> List[Document]:
